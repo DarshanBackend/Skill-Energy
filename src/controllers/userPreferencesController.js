@@ -1,7 +1,7 @@
 import UserPreferences from '../models/userPreferencesModel.js';
-import { 
-    sendSuccessResponse, 
-    sendErrorResponse, 
+import {
+    sendSuccessResponse,
+    sendErrorResponse,
     sendBadRequestResponse,
     sendNotFoundResponse,
     sendForbiddenResponse
@@ -10,6 +10,11 @@ import {
 // Create user preferences
 export const createPreferences = async (req, res) => {
     try {
+        // Check if user is a regular user
+        if (req.user.isAdmin) {
+            return sendForbiddenResponse(res, "Only users can create preferences");
+        }
+
         const {
             height,
             weight,
@@ -92,7 +97,7 @@ export const createPreferences = async (req, res) => {
 
         // Check if preferences already exist for this user
         const existingPreferences = await UserPreferences.findOne({ userId: req.user._id });
-        
+
         if (existingPreferences) {
             return sendBadRequestResponse(res, "Preferences already exist for this user");
         }
@@ -120,7 +125,7 @@ export const createPreferences = async (req, res) => {
 export const getUserPreferences = async (req, res) => {
     try {
         const userId = req.query.userId; // Get userId from query parameter
-        
+
         // If userId is provided and user is admin, get that user's preferences
         if (userId && req.user.isAdmin) {
             const preferences = await UserPreferences.findOne({ userId });
@@ -129,7 +134,7 @@ export const getUserPreferences = async (req, res) => {
             }
             return sendSuccessResponse(res, "Preferences retrieved successfully", preferences);
         }
-        
+
         // If no userId provided or user is not admin, get current user's preferences
         const preferences = await UserPreferences.findOne({ userId: req.user._id });
         if (!preferences) {
@@ -142,7 +147,7 @@ export const getUserPreferences = async (req, res) => {
     }
 };
 
-// Get all users' preferences (admin only)
+// Get all users preferences (admin only)
 export const getAllUsersPreferences = async (req, res) => {
     try {
         if (!req.user.isAdmin) {
@@ -150,7 +155,7 @@ export const getAllUsersPreferences = async (req, res) => {
         }
 
         const preferences = await UserPreferences.find().populate('userId', 'name email');
-        
+
         if (!preferences || preferences.length === 0) {
             return sendSuccessResponse(res, "No preferences found", []);
         }
@@ -165,7 +170,7 @@ export const getAllUsersPreferences = async (req, res) => {
 export const deleteUserPreferences = async (req, res) => {
     try {
         const preferences = await UserPreferences.findOneAndDelete({ userId: req.user._id });
-        
+
         if (!preferences) {
             return sendNotFoundResponse(res, "No preferences found for this user");
         }

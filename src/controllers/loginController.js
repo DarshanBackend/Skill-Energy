@@ -31,18 +31,12 @@ export const loginUser = async (req, res) => {
             return sendErrorResponse(res, 500, "Failed to generate token");
         }
 
-        // Set token in cookie
-        res.cookie("token", token, {
-            httpOnly: true,
-            expires: new Date(Date.now() + 8 * 3600000), // 8 hours
-        });
-
         return sendSuccessResponse(res, "Login successful", {
             id: user._id,
             name: user.name,
             email: user.email,
             token: token,
-            type: user.type
+            role: user.role
         });
 
     } catch (error) {
@@ -190,7 +184,6 @@ export const changePassword = async (req, res) => {
 //logoutUser
 export const logoutUser = async (req, res) => {
     try {
-        res.cookie("token", null, { expires: new Date(Date.now()) });
         return sendSuccessResponse(res, "User logout successfully...✅");
     } catch (error) {
         return sendErrorResponse(res, 400, error.message);

@@ -15,9 +15,9 @@ import {
 // Create new user
 export const createRegister = async (req, res) => {
     try {
-        const { name, phone, email, gender, password, confirmed_password, type } = req.body;
+        const { name, phone, email, gender, password, confirmed_password, role } = req.body;
 
-        if (!name || !phone || !email || !password || !confirmed_password || !type) {
+        if (!name || !phone || !email || !password || !confirmed_password || !role) {
             return sendBadRequestResponse(res, "All fields are required");
         }
 
@@ -25,22 +25,29 @@ export const createRegister = async (req, res) => {
             return sendBadRequestResponse(res, "Passwords do not match");
         }
 
-        const existingUser = await Register.findOne({ email });
+        // Check for existing user with same email or phone
+        const existingUser = await Register.findOne({
+            $or: [
+                { email: email.toLowerCase() },
+                { phone: phone }
+            ]
+        });
+
         if (existingUser) {
-            return sendBadRequestResponse(res, "Email already registered");
+            return sendBadRequestResponse(res, "Email or phone already registered");
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
-        
+
         const newRegister = await Register.create({
             name,
             phone,
-            email,
+            email: email.toLowerCase(),
             gender,
             password: hashedPassword,
             confirmed_password: hashedPassword,
-            type,
-            isAdmin: type === 'admin',
+            role,
+            isAdmin: role === 'admin',
             image: null
         });
 
@@ -67,25 +74,6 @@ export const getRegisterById = async (req, res) => {
         }
 
         return sendSuccessResponse(res, "User retrieved successfully", register);
-    } catch (error) {
-        return ThrowError(res, 500, error.message);
-    }
-};
-
-// Get all users
-export const getAllRegister = async (req, res) => {
-    try {
-        let query = {};
-        if (!req.user.isAdmin) {
-            return sendForbiddenResponse(res, "Access denied. Only admins can view all users.");
-        }
-        const registers = await Register.find(query);
-
-        if (!registers || registers.length === 0) {
-            return sendSuccessResponse(res, "No users found", []);
-        }
-
-        return sendSuccessResponse(res, "Users fetched successfully", registers);
     } catch (error) {
         return ThrowError(res, 500, error.message);
     }
@@ -181,7 +169,7 @@ export const getAllUsers = async (req, res) => {
             return sendForbiddenResponse(res, "Access denied. Only admins can view all users.");
         }
 
-        const users = await Register.find({ type: 'user' });
+        const users = await Register.find({ role: 'user' });
 
         if (!users || users.length === 0) {
             return sendSuccessResponse(res, "No users found", []);

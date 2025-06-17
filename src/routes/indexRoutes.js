@@ -1,39 +1,25 @@
-import express from 'express';
-import upload, { convertJfifToJpeg } from '../middlewares/imageupload.js';
-import { UserAuth, isAdmin, isUser } from '../middlewares/auth.js';
-import { createRegister, getRegisterById, updateRegister, deleteRegister, getAllUsers } from '../controllers/registerController.js';
+import express from "express";
+import upload, { convertJfifToJpeg } from "../middlewares/imageupload.js";
+import { UserAuth } from "../middlewares/auth.js";
+import { createRegister, getRegisterById, updateRegister, getAllMembers } from "../controllers/registerController.js";
 import { changePassword, forgotPassword, loginUser, logoutUser, resetPassword, VerifyEmail } from '../controllers/loginController.js';
-import { createPreferences, getUserPreferences, deleteUserPreferences, getAllUsersPreferences } from '../controllers/userPreferencesController.js';
-import { createPremiumPlan, getAllPremiumPlans, getPremiumPlanById, updatePremiumPlan, deletePremiumPlan } from '../controllers/premiumController.js';
-
-const indexRouter = express.Router();
-
-indexRouter.post('/createRegister', createRegister);
-indexRouter.get('/getRegisterById/:id', UserAuth, getRegisterById);
-indexRouter.put('/updateRegister/:id', UserAuth, upload.single("image"), convertJfifToJpeg, updateRegister);
-indexRouter.delete('/deleteRegister/:id', UserAuth, deleteRegister);
-indexRouter.get('/getAllUsers', UserAuth, isAdmin, getAllUsers);
 
 
-indexRouter.post('/loginUser', loginUser);
-indexRouter.post('/forgotPassword', forgotPassword);
-indexRouter.post('/VerifyEmail', VerifyEmail);
-indexRouter.post('/resetPassword', resetPassword);
-indexRouter.post('/changePassword/:id', UserAuth, changePassword);
-indexRouter.post('/logoutUser', UserAuth, logoutUser);
+const indexRoutes = express.Router()
 
 
-indexRouter.post('/createPreferences', UserAuth, isUser, createPreferences);
-indexRouter.get('/getUserPreferences', UserAuth, getUserPreferences);
-indexRouter.get('/getAllUsersPreferences', UserAuth, isAdmin, getAllUsersPreferences);
-indexRouter.delete('/deleteUserPreferences', UserAuth, isUser, deleteUserPreferences);
+indexRoutes.post("/createRegister", createRegister)
+indexRoutes.get("/getRegisterById/:id", UserAuth, getRegisterById)
+indexRoutes.get("/getAllMembers", getAllMembers)
+indexRoutes.put("/updateRegister/:id", UserAuth, upload.single("image"), convertJfifToJpeg, updateRegister)
 
 
-indexRouter.post('/createPremiumPlan', UserAuth, isAdmin, createPremiumPlan);
-indexRouter.get('/getAllPremiumPlans', UserAuth, getAllPremiumPlans);
-indexRouter.get('/getPremiumPlanById/:id', UserAuth, getPremiumPlanById);
-indexRouter.put('/updatePremiumPlan/:id', UserAuth, isAdmin, updatePremiumPlan);
-indexRouter.delete('/deletePremiumPlan/:id', UserAuth, isAdmin, deletePremiumPlan);
+indexRoutes.post('/loginUser', loginUser);
+indexRoutes.post('/forgotPassword', forgotPassword);
+indexRoutes.post('/VerifyEmail', VerifyEmail);
+indexRoutes.post('/resetPassword', resetPassword);
+indexRoutes.post('/changePassword', UserAuth, changePassword);
+indexRoutes.post('/logoutUser', UserAuth, logoutUser);
 
 
-export default indexRouter;  
+export default indexRoutes

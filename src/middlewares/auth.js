@@ -23,14 +23,22 @@ export const UserAuth = async (req, res, next) => {
 
         try {
             const decodedObj = jwt.verify(token, process.env.JWT_SECRET);
-            const { _id } = decodedObj;
+            const { _id, role, isAdmin } = decodedObj;
 
-            const user = await registerModel.findById(_id);
+            const user = await registerModel.findById(_id).select('-password');
             if (!user) {
                 return sendNotFoundResponse(res, "User not found");
             }
 
-            req.user = user;
+            // Set user information in request
+            req.user = {
+                _id: user._id,
+                name: user.name,
+                email: user.email,
+                role: role || user.role || 'user',
+                isAdmin: isAdmin || user.role === 'admin'
+            };
+            
             next();
         } catch (err) {
             console.error('Token verification error:', err);

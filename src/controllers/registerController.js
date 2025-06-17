@@ -3,38 +3,20 @@ import { ThrowError } from "../utils/ErrorUtils.js"
 import bcrypt from "bcryptjs";
 import fs from 'fs';
 import path from "path";
-import {
-    sendSuccessResponse,
-    sendErrorResponse,
-    sendBadRequestResponse,
-    sendNotFoundResponse,
-    sendForbiddenResponse,
-    sendCreatedResponse
-} from '../utils/ResponseUtils.js';
+import { sendSuccessResponse, sendErrorResponse, sendBadRequestResponse, sendForbiddenResponse, sendCreatedResponse, sendUnauthorizedResponse } from '../utils/ResponseUtils.js';
 
-// Create new user
+// Create new register
 export const createRegister = async (req, res) => {
     try {
-        const { name, phone, email, gender, password, confirmed_password, role } = req.body;
+        const { name, phone, email, password, role } = req.body;
 
-        if (!name || !phone || !email || !password || !confirmed_password || !role) {
+        if (!name || !phone || !email || !password || !role) {
             return sendBadRequestResponse(res, "All fields are required");
         }
 
-        if (password !== confirmed_password) {
-            return sendBadRequestResponse(res, "Passwords do not match");
-        }
-
-        // Check for existing user with same email or phone
-        const existingUser = await Register.findOne({
-            $or: [
-                { email: email.toLowerCase() },
-                { phone: phone }
-            ]
-        });
-
-        if (existingUser) {
-            return sendBadRequestResponse(res, "Email or phone already registered");
+        const existingTrainer = await Register.findOne({ email });
+        if (existingTrainer) {
+            return sendBadRequestResponse(res, "Email already registered");
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
@@ -42,10 +24,8 @@ export const createRegister = async (req, res) => {
         const newRegister = await Register.create({
             name,
             phone,
-            email: email.toLowerCase(),
-            gender,
+            email,
             password: hashedPassword,
-            confirmed_password: hashedPassword,
             role,
             isAdmin: role === 'admin',
             image: null
@@ -53,40 +33,46 @@ export const createRegister = async (req, res) => {
 
         return sendCreatedResponse(res, "Registration successful", newRegister);
     } catch (error) {
-        return ThrowError(res, 500, error.message);
+        return ThrowError(res, 500, error.message)
     }
 };
 
-// Get single user by ID
+// Get single register by ID
 export const getRegisterById = async (req, res) => {
     try {
         const { id } = req.params;
 
         let query = { _id: id };
-        if (!req.user.isAdmin && req.user._id.toString() !== id) {
+        // Check if user exists and has proper role
+        if (!req.user) {
+            return sendUnauthorizedResponse(res, "Authentication required");
+        }
+
+        // Check if user is admin or accessing their own profile
+        const isAdmin = req.user.role === 'admin';
+        if (!isAdmin && req.user._id.toString() !== id) {
             return sendForbiddenResponse(res, "Access denied. You can only view your own profile.");
         }
 
         const register = await Register.findOne(query);
 
         if (!register) {
-            return sendNotFoundResponse(res, "User not found");
+            return sendErrorResponse(res, 404, "User not found");
         }
 
         return sendSuccessResponse(res, "User retrieved successfully", register);
     } catch (error) {
-        return ThrowError(res, 500, error.message);
+        return ThrowError(res, 500, error.message)
     }
 };
 
-// Update user
+// Update register
 export const updateRegister = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, phone, email, gender } = req.body;
-        const newImagePath = req.file?.path;
+        const { name, bio, language, role } = req.body;
 
-        if (!req.user.isAdmin && req.user._id.toString() !== id) {
+        if (!req.user || (!req.user.isAdmin && req.user._id.toString() !== id)) {
             return sendForbiddenResponse(res, "Access denied. You can only update your own profile.");
         }
 
@@ -98,35 +84,47 @@ export const updateRegister = async (req, res) => {
                     fs.unlinkSync(filePath);
                 }
             }
-            return sendNotFoundResponse(res, "User not found");
+            return sendErrorResponse(res, 404, "User not found");
         }
 
-        if (name) {
-            existingUser.name = name;
-        }
-        if (phone) {
-            existingUser.phone = phone;
-        }
-        if (gender) {
-            existingUser.gender = gender;
-        }
-        if (email) {
-            existingUser.email = email;
-        }
+        // Handle image upload
+        if (req.file) {
+            // Convert the file path to a URL path
+            const newImagePath = `/public/images/${path.basename(req.file.path)}`;
 
-        if (newImagePath) {
+            // Delete old image if exists
             if (existingUser.image) {
-                const oldImagePath = path.resolve(existingUser.image);
+                const oldImagePath = path.join(process.cwd(), existingUser.image);
                 if (fs.existsSync(oldImagePath)) {
                     fs.unlinkSync(oldImagePath);
                 }
             }
+
             existingUser.image = newImagePath;
+        }
+
+        // Update other fields
+        if (name) {
+            existingUser.name = name;
+        }
+        if (bio) {
+            existingUser.bio = bio;
+        }
+        if (language) {
+            existingUser.language = language;
+        }
+        if (role) {
+            existingUser.role = role;
+            existingUser.isAdmin = role === 'admin';
         }
 
         await existingUser.save();
 
-        return sendSuccessResponse(res, "User updated successfully", existingUser);
+        // Return user data without password
+        const userResponse = existingUser.toObject();
+        delete userResponse.password;
+
+        return sendSuccessResponse(res, "User updated successfully", userResponse);
     } catch (error) {
         if (req.file) {
             const filePath = path.resolve(req.file.path);
@@ -134,22 +132,23 @@ export const updateRegister = async (req, res) => {
                 fs.unlinkSync(filePath);
             }
         }
-        return sendErrorResponse(res, 500, error.message);
+        return ThrowError(res, 500, error.message)
     }
 };
 
-// Delete user
+// Delete register
 export const deleteRegister = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const existingUser = await Register.findById(id);
-        if (!existingUser) {
-            return sendNotFoundResponse(res, "User not found");
+        const existingTrainer = await Register.findById(id);
+        if (!existingTrainer) {
+            return sendErrorResponse(res, 404, "Member not found");
         }
 
-        if (existingUser.image) {
-            const imagePath = path.resolve(existingUser.image);
+        if (existingTrainer.trainer_image) {
+            const imagePath = path.resolve(existingTrainer.trainer_image);
+
             if (fs.existsSync(imagePath)) {
                 fs.unlinkSync(imagePath);
             }
@@ -157,26 +156,37 @@ export const deleteRegister = async (req, res) => {
 
         await Register.findByIdAndDelete(id);
 
-        return sendSuccessResponse(res, "User deleted successfully");
+        return sendSuccessResponse(res, "Member deleted successfully");
     } catch (error) {
-        return ThrowError(res, 500, error.message);
+        return ThrowError(res, 500, error.message)
     }
 };
 
-export const getAllUsers = async (req, res) => {
+
+export const getAllMembers = async (req, res) => {
     try {
-        if (!req.user.isAdmin) {
-            return sendForbiddenResponse(res, "Access denied. Only admins can view all users.");
+        // --- Access Control: Only allow trainers to view all members ---
+        if (!req.trainer.isAdmin) {
+            // If the logged-in register is NOT an admin (i.e., they are a member),
+            // they are forbidden from accessing this list.
+            return sendForbiddenResponse(res, "Access denied. Only trainers can view all members.");
+        }
+        // ---------------------------------------------------------------
+
+        // Find all registers where the 'role' field is 'member'
+        const members = await Register.find({ role: 'member' });
+
+        // Check if any members were found
+        if (!members || members.length === 0) {
+            return sendSuccessResponse(res, "No members found", []);
         }
 
-        const users = await Register.find({ role: 'user' });
+        // Send a success response with the fetched members
+        return sendSuccessResponse(res, "Members fetched successfully", members);
 
-        if (!users || users.length === 0) {
-            return sendSuccessResponse(res, "No users found", []);
-        }
-
-        return sendSuccessResponse(res, "Users fetched successfully", users);
     } catch (error) {
-        return ThrowError(res, 500, error.message);
+        // Handle any errors that occur during the process
+        // (e.g., database connection issues, server errors)
+        return ThrowError(res, 500, error.message)
     }
 };

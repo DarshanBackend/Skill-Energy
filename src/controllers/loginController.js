@@ -31,14 +31,15 @@ export const loginUser = async (req, res) => {
             return sendErrorResponse(res, 500, "Failed to generate token");
         }
 
+        // Return user data with role and isAdmin status
         return sendSuccessResponse(res, "Login successful", {
             id: user._id,
             name: user.name,
             email: user.email,
-            token: token,
-            role: user.role
+            role: user.role || 'user',
+            isAdmin: user.role === 'admin',
+            token: token
         });
-
     } catch (error) {
         return ThrowError(res, 500, error.message)
     }
@@ -49,18 +50,23 @@ export const forgotPassword = async (req, res) => {
     try {
         const { email } = req.body;
         if (!email) {
-            return sendBadRequestResponse(res, "Provide Email Id");
+            return sendBadRequestResponse(res, "Email is required");
         }
 
-        const user = await Register.findOne({ email: email })
+        const user = await Register.findOne({ email: email });
         if (!user) {
-            return sendErrorResponse(res, 400, "User Not Found");
+            return sendErrorResponse(res, 404, "User not found");
         }
 
+        // Generate OTP
         const otp = generateOTP();
-        user.resetOTP = otp;
-        user.otpExpires = Date.now() + 10 * 60 * 1000; // valid 10 minutes
+        user.otp = otp;
+        user.otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+
+        // Save user and verify OTP was saved
         await user.save();
+        const savedUser = await Register.findOne({ email: email });
+        console.log('Saved OTP:', savedUser.otp); // Debug log
 
         const transporter = nodemailer.createTransport({
             service: "gmail",
@@ -82,6 +88,7 @@ export const forgotPassword = async (req, res) => {
         return sendSuccessResponse(res, "OTP sent successfully to your email");
 
     } catch (error) {
+        console.error('Forgot Password Error:', error); // Debug log
         return ThrowError(res, 500, error.message);
     }
 };
@@ -90,6 +97,7 @@ export const forgotPassword = async (req, res) => {
 export const VerifyEmail = async (req, res) => {
     try {
         const { email, otp } = req.body;
+        console.log('Verifying OTP:', { email, otp }); // Debug log
 
         if (!email || !otp) {
             return sendBadRequestResponse(res, "Please provide email and OTP.");
@@ -100,15 +108,32 @@ export const VerifyEmail = async (req, res) => {
             return sendErrorResponse(res, 404, "User not found.");
         }
 
-        if (user.resetOTP !== otp || user.otpExpires < Date.now()) {
-            return sendBadRequestResponse(res, "Invalid or expired OTP.");
+        console.log('User OTP details:', {
+            storedOTP: user.otp,
+            providedOTP: otp,
+            expiry: user.otpExpiry,
+            currentTime: new Date()
+        }); // Debug log
+
+        // Check if OTP exists and is not expired
+        if (!user.otp || !user.otpExpiry) {
+            return sendBadRequestResponse(res, "No OTP found. Please request a new OTP.");
+        }
+
+        if (user.otp !== otp) {
+            return sendBadRequestResponse(res, "Invalid OTP.");
+        }
+
+        if (user.otpExpiry < Date.now()) {
+            return sendBadRequestResponse(res, "OTP has expired. Please request a new OTP.");
         }
 
         await user.save();
 
-        return sendSuccessResponse(res, "OTP Submitted successfully.");
+        return sendSuccessResponse(res, "OTP verified successfully.");
 
     } catch (error) {
+        console.error('Verify Email Error:', error); // Debug log
         return ThrowError(res, 500, error.message);
     }
 };
@@ -132,8 +157,8 @@ export const resetPassword = async (req, res) => {
 
         await Register.findOne({ password: newPassword });
         user.password = await bcrypt.hash(newPassword, 10);
-        user.resetOTP = undefined;
-        user.otpExpires = undefined;
+        user.otp = undefined;
+        user.otpExpiry = undefined;
         await user.save();
 
         return sendSuccessResponse(res, "Password reset successfully.", { id: user._id, email: user.email });
@@ -145,24 +170,24 @@ export const resetPassword = async (req, res) => {
 // Change Password for user
 export const changePassword = async (req, res) => {
     try {
-        const { id } = req.params;
-        const { currentPassword, newPassword, confirmPassword } = req.body;
+        const { oldPassword, newPassword, confirmPassword } = req.body;
 
-        if (!currentPassword || !newPassword || !confirmPassword) {
-            return sendBadRequestResponse(res, "currentPassword, newPassword, and confirmPassword are required.");
+        if (!oldPassword || !newPassword || !confirmPassword) {
+            return sendBadRequestResponse(res, "oldPassword, newPassword, and confirmPassword are required.");
         }
 
-        const user = await Register.findById(id);
+        // Get user from the authenticated request
+        const user = await Register.findById(req.user._id);
         if (!user) {
-            return sendErrorResponse(res, 404, "User not found with the provided ID");
+            return sendErrorResponse(res, 404, "User not found");
         }
-        
-        const isMatch = await bcrypt.compare(currentPassword, user.password);
+
+        const isMatch = await bcrypt.compare(oldPassword, user.password);
         if (!isMatch) {
             return sendBadRequestResponse(res, "Current password is incorrect.");
         }
 
-        if (newPassword === currentPassword) {
+        if (newPassword === oldPassword) {
             return sendBadRequestResponse(res, "New password cannot be the same as current password.");
         }
 
@@ -177,13 +202,14 @@ export const changePassword = async (req, res) => {
         return sendSuccessResponse(res, "Password changed successfully.");
 
     } catch (error) {
-        return ThrowError(res, 500, error.message);
+        return sendErrorResponse(res, 500, error.message);
     }
 };
 
 //logoutUser
 export const logoutUser = async (req, res) => {
     try {
+        res.cookie("token", null, { expires: new Date(Date.now()) });
         return sendSuccessResponse(res, "User logout successfully...✅");
     } catch (error) {
         return sendErrorResponse(res, 400, error.message);

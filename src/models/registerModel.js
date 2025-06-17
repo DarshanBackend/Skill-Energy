@@ -1,43 +1,18 @@
 import mongoose from "mongoose";
-import jwt from "jsonwebtoken"
+import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 
 const registerSchema = mongoose.Schema({
-    name: {
-        type: String
-    },
-    phone: {
-        type: String
-    },
-    email: {
-        type: String
-    },
-    gender: {
-        type: String,
-        enum: ["male", "female", "other"]
-    },
-    password: {
-        type: String
-    },
-    confirmed_password: {
-        type: String
-    },
-    image: {
-        type: String
-    },
-    role: {
-        type: String,
-        enum: ["admin", "user"]
-    },
+    name: { type: String },
+    phone: { type: Number },
+    email: { type: String },
+    password: { type: String },
+    image: { type: String },
+    otp: { type: Number },
+    otpExpiry: { type: Date },
     isAdmin: {
         type: Boolean,
         default: false
-    },
-    resetOTP: {
-        type: Number
-    },
-    otpExpires: {
-        type: Date
     },
     planId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -53,48 +28,54 @@ const registerSchema = mongoose.Schema({
     endDate: {
         type: Date
     },
+    image: {
+        type: String
+    },
+    bio: {
+        type: String
+    },
+    language: {
+        type: String
+    },
+    role: {
+        type: String,
+        enum: ["admin", "user"],
+        default: "user"
+    },
+    // watchlist: [{
+    //     type: mongoose.Schema.Types.ObjectId,
+    //     ref: ""
+    // }],
     planStatus: {
         type: String,
         enum: ["Active", "Expired", "No Subscription"],
         default: "No Subscription"
-    },
+    }
+}, { timestamps: true });
 
-})
+// Pre-save middleware to ensure isAdmin is in sync with role
+registerSchema.pre('save', function (next) {
+    this.isAdmin = this.role === 'admin';
+    next();
+});
 
+//  JWT token create method
 registerSchema.methods.getJWT = async function () {
-    try {
-        if (!process.env.JWT_SECRET) {
-            throw new Error('JWT_SECRET is not configured');
-        }
-
-        const token = jwt.sign(
-            { _id: this._id },
-            process.env.JWT_SECRET,
-            {
-                expiresIn: "8h",
-                issuer: 'dance-fitme',
-                audience: 'dance-fitme-users'
-            }
-        );
-
-        return token;
-    } catch (error) {
-        console.error('Error generating JWT:', error);
-        throw error;
-    }
+    const user = this;
+    const token = jwt.sign({
+        _id: user._id,
+        role: user.role || 'user',
+        isAdmin: user.role === 'admin'
+    }, process.env.JWT_SECRET, {
+        expiresIn: "8h"  // Match the cookie expiration time
+    });
+    return token;
 };
 
+//  Password validation method
 registerSchema.methods.validatePassword = async function (passwordInputByUser) {
-    try {
-        const isPasswordValid = await bcrypt.compare(
-            passwordInputByUser,
-            this.password
-        );
-        return isPasswordValid;
-    } catch (error) {
-        console.error('Error validating password:', error);
-        throw error;
-    }
+    const user = this;
+    return await bcrypt.compare(passwordInputByUser, user.password);
 };
 
-export default mongoose.model("Register", registerSchema)
+export default mongoose.model("register", registerSchema);

@@ -87,5 +87,5 @@ const convertJfifToJpeg = async (req, res, next) => {
     }
 };
 
-export { uploadHandlers, handleMulterError, convertJfifToJpeg };
+export { upload, uploadHandlers, handleMulterError, convertJfifToJpeg };
 export default uploadHandlers;

@@ -35,8 +35,8 @@ export const UserAuth = async (req, res, next) => {
                 _id: user._id,
                 name: user.name,
                 email: user.email,
-                role: role || user.role || 'user',
-                isAdmin: isAdmin || user.role === 'admin'
+                role: user.role || 'user',
+                isAdmin: user.role === 'admin'
             };
             
             next();

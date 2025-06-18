@@ -162,31 +162,31 @@ export const deleteRegister = async (req, res) => {
     }
 };
 
-
-export const getAllMembers = async (req, res) => {
+// Get all users (admin only)
+export const getAllUsers = async (req, res) => {
     try {
-        // --- Access Control: Only allow trainers to view all members ---
-        if (!req.trainer.isAdmin) {
-            // If the logged-in register is NOT an admin (i.e., they are a member),
-            // they are forbidden from accessing this list.
-            return sendForbiddenResponse(res, "Access denied. Only trainers can view all members.");
-        }
-        // ---------------------------------------------------------------
-
-        // Find all registers where the 'role' field is 'member'
-        const members = await Register.find({ role: 'member' });
-
-        // Check if any members were found
-        if (!members || members.length === 0) {
-            return sendSuccessResponse(res, "No members found", []);
+        // Check if user is authenticated and is admin
+        if (!req.user) {
+            return sendUnauthorizedResponse(res, "Authentication required");
         }
 
-        // Send a success response with the fetched members
-        return sendSuccessResponse(res, "Members fetched successfully", members);
+        if (!req.user.isAdmin) {
+            return sendForbiddenResponse(res, "Access denied. Only admins can view all users.");
+        }
+
+        // Find all users with role 'user'
+        const users = await Register.find({ role: 'user' }).select('-password');
+
+        // Check if any users were found
+        if (!users || users.length === 0) {
+            return sendSuccessResponse(res, "No users found", []);
+        }
+
+        // Send a success response with the fetched users
+        return sendSuccessResponse(res, "Users fetched successfully", users);
 
     } catch (error) {
-        // Handle any errors that occur during the process
-        // (e.g., database connection issues, server errors)
         return ThrowError(res, 500, error.message)
     }
 };
+

@@ -1,10 +1,10 @@
 import jwt from "jsonwebtoken";
 import registerModel from "../models/registerModel.js";
-import { 
-    sendErrorResponse, 
-    sendForbiddenResponse, 
+import {
+    sendErrorResponse,
+    sendForbiddenResponse,
     sendUnauthorizedResponse,
-    sendNotFoundResponse 
+    sendNotFoundResponse
 } from '../utils/ResponseUtils.js';
 
 export const UserAuth = async (req, res, next) => {
@@ -38,7 +38,7 @@ export const UserAuth = async (req, res, next) => {
                 role: user.role || 'user',
                 isAdmin: user.role === 'admin'
             };
-            
+
             next();
         } catch (err) {
             console.error('Token verification error:', err);
@@ -73,4 +73,3 @@ export const isUser = async (req, res, next) => {
         return sendErrorResponse(res, 500, error.message);
     }
 };
-    

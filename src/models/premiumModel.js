@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 const PremiumSchema = mongoose.Schema({
     type: {
         type: String,
-        enum: ["Personal Plans", "Team Plans", "Enterprice Plan"],
+        enum: ["Personal Plans", "Team Plans", "Enterprise Plan"],
         required: true
     },
     price: {
@@ -13,6 +13,11 @@ const PremiumSchema = mongoose.Schema({
     },
     content: {
         type: Array,
+    },
+    duration: {
+        type: String,
+        enum: ["Weekly", "Monthly", "Yearly"],
+        required: true
     },
     isActive: {
         type: Boolean,

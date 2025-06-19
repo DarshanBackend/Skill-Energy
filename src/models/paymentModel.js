@@ -45,6 +45,15 @@ const PaymentSchema = mongoose.Schema({
     premiumPlan: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Premium',
+    },
+    billingAddressId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'BillingAddress',
+    },
+    user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'register',
+        required: true
     }
 }, { timestamps: true });
 

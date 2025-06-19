@@ -9,20 +9,26 @@ export const createPremium = async (req, res) => {
         if (!req.user || !req.user.isAdmin) {
             return ThrowError(res, 403, "Access denied. Admins only.");
         }
-        const { type, price, content, isActive } = req.body;
-        if (!type || !price || !content) {
-            return ThrowError(res, 400, "type, price, and content are required");
+        const { type, price, content, isActive, duration } = req.body;
+        if (!type || !price || !content || !duration) {
+            return ThrowError(res, 400, "type, price, content and duration are required");
         }
 
-        const existingPremium = await Premium.find({ type });
+        const existingPremium = await Premium.find({ type, duration });
         if (existingPremium.length > 0) {
             return sendBadRequestResponse(res, "Premium already exists");
         }
 
+        let finalPrice = price;
+        if (duration === "Yearly") {
+            finalPrice = price * 12;
+        }
+
         const newPremium = new Premium({
             type,
-            price,
+            price: finalPrice,
             content,
+            duration,
             isActive: isActive !== undefined ? isActive : true
         });
         const savedPremium = await newPremium.save();

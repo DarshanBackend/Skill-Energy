@@ -42,15 +42,15 @@ const registerSchema = mongoose.Schema({
         enum: ["admin", "user"],
         default: "user"
     },
-    // watchlist: [{
-    //     type: mongoose.Schema.Types.ObjectId,
-    //     ref: ""
-    // }],
     planStatus: {
         type: String,
         enum: ["Active", "Expired", "No Subscription"],
         default: "No Subscription"
-    }
+    },
+    watchlist: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Coures"
+    },
 }, { timestamps: true });
 
 // Pre-save middleware to ensure isAdmin is in sync with role

@@ -8,7 +8,8 @@ import { createCourseCategory, deleteCourseCategory, getAllCourseCategories, get
 import { createPremium, deletePremium, getAllPremium, getPremiumById, updatePremium } from "../controllers/premiumController.js";
 import { createPayment, deletePayment, getAllPayments, getPaymentById, updatePayment, getMySubscription } from "../controllers/paymentController.js";
 import { createbilling, deleteBillingAddress, getAllBillingAddress, getBillingAddressById, updateBillingAddress } from "../controllers/billingAddressController.js";
-import { createReasonCancel, deleteMyAccountWithReason, deleteReasonCancel, getAllReasonCancel, getReasonCancelById, updateReasonCancel } from "../controllers/reasonDeleteAccountController.js";
+import { createReasonCancel, deleteMyAccount, deleteReasonCancel, getAllReasonCancel, getReasonCancelById, updateReasonCancel } from "../controllers/reasonDeleteAccountController.js";
+import { createSection, deleteSection, getAllSections, getSectionById, updateSection } from "../controllers/courseSectionController.js";
 
 
 const indexRoutes = express.Router()
@@ -76,6 +77,14 @@ indexRoutes.get("/getReasonCancelById/:id", UserAuth, getReasonCancelById)
 indexRoutes.get("/getAllReasonCancel", UserAuth, isAdmin, getAllReasonCancel)
 indexRoutes.put("/updateReasonCancel/:id", UserAuth, updateReasonCancel)
 indexRoutes.delete("/deleteReasonCancel/:id", UserAuth, deleteReasonCancel)
-indexRoutes.delete("/deleteMyAccountWithReason", UserAuth, deleteMyAccountWithReason)
+indexRoutes.delete("/deleteMyAccount", UserAuth, deleteMyAccount)
+
+
+//courseSection Routes
+indexRoutes.post("/createSection", UserAuth, createSection)
+indexRoutes.post("/getSectionById", UserAuth, getSectionById)
+indexRoutes.post("/getAllSections", UserAuth, getAllSections)
+indexRoutes.post("/updateSection", UserAuth, updateSection)
+indexRoutes.post("/deleteSection", UserAuth, deleteSection)
 
 export default indexRoutes

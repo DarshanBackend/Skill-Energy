@@ -8,6 +8,7 @@ export const createCourse = async (req, res) => {
     try {
         // Destructure text fields from req.body
         const {
+            courseCategoryId,
             video_title,
             short_description,
             student,
@@ -20,8 +21,11 @@ export const createCourse = async (req, res) => {
         } = req.body;
 
         // Validate required text fields
-        if (!video_title || !short_description || !price) {
-            return ThrowError(res, 400, "Missing required fields: video_title, short_description, and price are required");
+        if (!video_title || !short_description || !price || !courseCategoryId) {
+            return ThrowError(res, 400, "Missing required fields: courseCategoryId, video_title, short_description, and price are required");
+        }
+        if (!mongoose.Types.ObjectId.isValid(courseCategoryId)) {
+            return ThrowError(res, 400, "Invalid courseCategoryId");
         }
 
         // Validate files (optional: thumbnail and video)
@@ -30,7 +34,6 @@ export const createCourse = async (req, res) => {
 
         if (req.files) {
             if (req.files.thumbnail && req.files.thumbnail[0]) {
-                // If using multer with diskStorage, use req.files.thumbnail[0].path or .location (for S3)
                 thumbnailUrl = req.files.thumbnail[0].path || req.files.thumbnail[0].location || "";
             }
             if (req.files.video && req.files.video[0]) {
@@ -54,8 +57,9 @@ export const createCourse = async (req, res) => {
 
         // Create the course
         const newCourse = new Course({
+            courseCategory: courseCategoryId,
             video: videoUrl,
-            thumbnail: thumbnailUrl,
+            thumnail: thumbnailUrl,
             video_title,
             short_description,
             student: student || '',
@@ -105,7 +109,7 @@ export const getCourseById = async (req, res) => {
             return sendBadRequestResponse(res, "Invalid course ID");
         }
 
-        const course = await Course.findById(id);
+        const course = await Course.findById(id).populate('courseCategory');
 
         if (!course) {
             return sendErrorResponse(res, 404, "Course not found");
@@ -120,7 +124,7 @@ export const getCourseById = async (req, res) => {
 // Get all courses
 export const getAllCourses = async (req, res) => {
     try {
-        const courses = await Course.find({});
+        const courses = await Course.find({}).populate('courseCategory');
 
         if (!courses || courses.length === 0) {
             return sendSuccessResponse(res, "No courses found", []);
@@ -139,15 +143,20 @@ export const updateCourse = async (req, res) => {
             return ThrowError(res, 400, "Invalid course ID");
         }
 
-        const { video, thumbnail, video_title, short_description, student, rating, language, cc, price, what_are_learn, long_description } = req.body;
+        const { courseCategoryId, video, thumnail, video_title, short_description, student, rating, language, cc, price, what_are_learn, long_description } = req.body;
 
         const course = await Course.findById(req.params.id);
         if (!course) {
             return ThrowError(res, 404, "Course not found");
         }
 
+        if (courseCategoryId && !mongoose.Types.ObjectId.isValid(courseCategoryId)) {
+            return ThrowError(res, 400, "Invalid courseCategoryId");
+        }
+
+        course.courseCategory = courseCategoryId ?? course.courseCategory;
         course.video = video ?? course.video;
-        course.thumbnail = thumbnail ?? course.thumbnail;
+        course.thumnail = thumnail ?? course.thumnail;
         course.video_title = video_title ?? course.video_title;
         course.short_description = short_description ?? course.short_description;
         course.student = student ?? course.student;
@@ -158,8 +167,8 @@ export const updateCourse = async (req, res) => {
         course.what_are_learn = what_are_learn ?? course.what_are_learn;
         course.long_description = long_description ?? course.long_description;
 
-        const updatedcourse = await course.save();
-        res.status(200).json(updatedcourse);
+        const updatedCourse = await course.save();
+        res.status(200).json(updatedCourse);
     } catch (error) {
         return ThrowError(res, 500, error.message);
     }

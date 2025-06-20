@@ -122,20 +122,12 @@ export const deleteReasonCancel = async (req, res) => {
     }
 };
 
-// User deletes their own account with a reason
-export const deleteMyAccountWithReason = async (req, res) => {
+// User delete their own account 
+export const deleteMyAccount = async (req, res) => {
     try {
         const userId = req.user._id;
-        const { reasonCancel } = req.body;
-        if (!reasonCancel) {
-            return res.status(400).json({ success: false, message: "Reason is required" });
-        }
-        // Save the reason with the user
-        const reason = new ReasonDeleteAccount({ reasonCancel, user: userId });
-        await reason.save();
-        // Delete the user account
         await registerModel.findByIdAndDelete(userId);
-        res.status(200).json({ success: true, message: "Account deleted and reason saved successfully" });
+        res.status(200).json({ success: true, message: "Account deleted successfully" });
     } catch (error) {
         return ThrowError(res, 500, error.message)
     }

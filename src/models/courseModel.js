@@ -1,6 +1,10 @@
 import mongoose from "mongoose";
 
 const courseSchema = mongoose.Schema({
+    courseCategory: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "CourseCategory"
+    },
     video: {
         type: String,
         default: null
@@ -13,12 +17,6 @@ const courseSchema = mongoose.Schema({
     },
     short_description: {
         type: String
-    },
-    student: {
-        type: String
-    },
-    rating: {
-        type: Number
     },
     created_by: {
         type: Date
@@ -40,7 +38,31 @@ const courseSchema = mongoose.Schema({
     },
     long_description: {
         type: String
-    }
+    },
+    views: {
+        type: [{
+            userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+            timestamp: { type: Date, default: Date.now }
+        }],
+        default: []
+    },
+    rating: { type: Number, default: 0 },
+    ratings: [{
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        rating: { type: Number, min: 1, max: 5 },
+        createdAt: { type: Date, default: Date.now }
+    }]
 }, { timestamps: true });
+
+
+// Add a pre-save middleware to handle the views field
+courseSchema.pre('save', function (next) {
+    // If views is a number, convert it to the new format
+    if (typeof this.views === 'number') {
+        this.views = [];
+    }
+    next();
+});
+
 
 export default mongoose.model("Coures", courseSchema)

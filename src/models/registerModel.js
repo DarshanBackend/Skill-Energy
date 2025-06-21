@@ -3,6 +3,12 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 
 const registerSchema = mongoose.Schema({
+    firstName: {
+        type: String,
+    },
+    lastName: {
+        type: String
+    },
     name: { type: String },
     phone: { type: Number },
     email: { type: String },

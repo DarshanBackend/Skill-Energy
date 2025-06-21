@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 const courseSectionSchema = new mongoose.Schema({
-    courseId: { type: mongoose.Schema.Types.ObjectId, ref: "Coures" },
+    courseId: { type: mongoose.Schema.Types.ObjectId, ref: "Course" },
     sectionNo: { type: String, required: true },
     section_title: { type: String, required: true },
     total_time: { String: Number },

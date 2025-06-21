@@ -65,4 +65,4 @@ courseSchema.pre('save', function (next) {
 });
 
 
-export default mongoose.model("Coures", courseSchema)
+export default mongoose.model("Course", courseSchema)

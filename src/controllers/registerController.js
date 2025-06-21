@@ -14,9 +14,14 @@ export const createRegister = async (req, res) => {
             return sendBadRequestResponse(res, "All fields are required");
         }
 
-        const existingTrainer = await Register.findOne({ email });
+        const existingTrainer = await Register.findOne({
+            $or: [
+                { email: email.toLowerCase() },
+                { phone: phone }
+            ]
+        });
         if (existingTrainer) {
-            return sendBadRequestResponse(res, "Email already registered");
+            return sendBadRequestResponse(res, "Email or phone already registered");
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
@@ -66,8 +71,8 @@ export const getRegisterById = async (req, res) => {
     }
 };
 
-// Update register
-export const updateRegister = async (req, res) => {
+// Update profile only user
+export const updateProfileUser = async (req, res) => {
     try {
         const { id } = req.params;
         const { name, bio, language, role } = req.body;
@@ -125,6 +130,79 @@ export const updateRegister = async (req, res) => {
         delete userResponse.password;
 
         return sendSuccessResponse(res, "User updated successfully", userResponse);
+    } catch (error) {
+        if (req.file) {
+            const filePath = path.resolve(req.file.path);
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+            }
+        }
+        return ThrowError(res, 500, error.message)
+    }
+};
+
+//update profile only Admin
+export const updateProfileAdmin = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { firstName, lastName, email, phone, role } = req.body;
+
+        if (!req.user || (!req.user.isAdmin && req.user._id.toString() !== id)) {
+            return sendForbiddenResponse(res, "Access denied. You can only update your own profile.");
+        }
+
+        const existingAdmin = await Register.findById(id);
+        if (!existingAdmin) {
+            if (req.file) {
+                const filePath = path.resolve(req.file.path);
+                if (fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath);
+                }
+            }
+            return sendErrorResponse(res, 404, "Admin not found");
+        }
+
+        // Handle image upload
+        if (req.file) {
+            // Convert the file path to a URL path
+            const newImagePath = `/public/images/${path.basename(req.file.path)}`;
+
+            // Delete old image if exists
+            if (existingAdmin.image) {
+                const oldImagePath = path.join(process.cwd(), existingAdmin.image);
+                if (fs.existsSync(oldImagePath)) {
+                    fs.unlinkSync(oldImagePath);
+                }
+            }
+
+            existingAdmin.image = newImagePath;
+        }
+
+        // Update other fields
+        if (firstName) {
+            existingAdmin.firstName = firstName;
+        }
+        if (lastName) {
+            existingAdmin.lastName = lastName;
+        }
+        if (email) {
+            existingAdmin.email = email;
+        }
+        if (phone) {
+            existingAdmin.phone = phone;
+        }
+        if (role) {
+            existingAdmin.role = role;
+            existingAdmin.isAdmin = role === 'admin';
+        }
+
+        await existingAdmin.save();
+
+        // Return Admin data without password
+        const adminResponse = existingAdmin.toObject();
+        delete adminResponse.password;
+
+        return sendSuccessResponse(res, "Admin updated successfully", adminResponse);
     } catch (error) {
         if (req.file) {
             const filePath = path.resolve(req.file.path);

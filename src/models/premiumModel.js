@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 const PremiumSchema = mongoose.Schema({
-    type: {
+    plan_name: {
         type: String,
         enum: ["Personal Plans", "Team Plans", "Enterprise Plan"],
         required: true
@@ -11,7 +11,7 @@ const PremiumSchema = mongoose.Schema({
         required: true,
         min: 0
     },
-    content: {
+    description: {
         type: Array,
     },
     duration: {

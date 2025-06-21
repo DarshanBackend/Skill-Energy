@@ -9,7 +9,27 @@ dotenv.config();
 // Configure storage
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, 'public/images');
+        // Create different folders based on field name
+        let uploadPath = 'public/images';
+        
+        if (file.fieldname === 'companyImage') {
+            uploadPath = 'public/companyImage';
+        } else if (file.fieldname === 'thumbnail') {
+            uploadPath = 'public/thumbnails';
+        } else if (file.fieldname === 'video') {
+            uploadPath = 'public/videos';
+        } else if (file.fieldname === 'profileImage') {
+            uploadPath = 'public/profileImages';
+        } else if (file.fieldname === 'mentorImage') {
+            uploadPath = 'public/mentorImages';
+        }
+        
+        // Create directory if it doesn't exist
+        if (!fs.existsSync(uploadPath)) {
+            fs.mkdirSync(uploadPath, { recursive: true });
+        }
+        
+        cb(null, uploadPath);
     },
     filename: function (req, file, cb) {
         cb(null, Date.now() + path.extname(file.originalname));
@@ -18,11 +38,13 @@ const storage = multer.diskStorage({
 
 // File filter function
 const fileFilter = (req, file, cb) => {
-    // Accept all files that are being uploaded as 'image'
-    if (file.fieldname === 'image') {
+    // Accept files with common image field names
+    const allowedFieldNames = ['image', 'companyImage', 'thumbnail', 'profileImage', 'courseImage', 'video', 'mentorImage'];
+    
+    if (allowedFieldNames.includes(file.fieldname)) {
         cb(null, true);
     } else {
-        cb(new Error('Please upload a file with field name "image"'));
+        cb(new Error(`Please upload a file with one of these field names: ${allowedFieldNames.join(', ')}`));
     }
 };
 

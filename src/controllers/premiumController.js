@@ -9,12 +9,12 @@ export const createPremium = async (req, res) => {
         if (!req.user || !req.user.isAdmin) {
             return ThrowError(res, 403, "Access denied. Admins only.");
         }
-        const { type, price, content, isActive, duration } = req.body;
-        if (!type || !price || !content || !duration) {
-            return ThrowError(res, 400, "type, price, content and duration are required");
+        const { plan_name, price, description, isActive, duration } = req.body;
+        if (!plan_name || !price || !description || !duration) {
+            return ThrowError(res, 400, "plan_name, price, description and duration are required");
         }
 
-        const existingPremium = await Premium.find({ type, duration });
+        const existingPremium = await Premium.find({ plan_name, duration });
         if (existingPremium.length > 0) {
             return sendBadRequestResponse(res, "Premium already exists");
         }
@@ -25,9 +25,9 @@ export const createPremium = async (req, res) => {
         }
 
         const newPremium = new Premium({
-            type,
+            plan_name,
             price: finalPrice,
-            content,
+            description,
             duration,
             isActive: isActive !== undefined ? isActive : true
         });
@@ -68,7 +68,7 @@ export const getPremiumById = async (req, res) => {
             return ThrowError(res, 403, "Access denied. Admins only.");
         }
         const { id } = req.params;
-        if (!mongoose.Types.ObjectId.isValid(id)) {
+        if (!mongoose.plan_names.ObjectId.isValid(id)) {
             return ThrowError(res, 400, 'Invalid Premium ID format');
         }
         const premium = await Premium.findById(id);
@@ -92,7 +92,7 @@ export const updatePremium = async (req, res) => {
             return ThrowError(res, 403, "Access denied. Admins only.");
         }
         const { id } = req.params;
-        if (!mongoose.Types.ObjectId.isValid(id)) {
+        if (!mongoose.plan_names.ObjectId.isValid(id)) {
             return ThrowError(res, 400, 'Invalid Premium ID format');
         }
         const updatedPremium = await Premium.findByIdAndUpdate(
@@ -120,7 +120,7 @@ export const deletePremium = async (req, res) => {
             return ThrowError(res, 403, "Access denied. Admins only.");
         }
         const { id } = req.params;
-        if (!mongoose.Types.ObjectId.isValid(id)) {
+        if (!mongoose.plan_names.ObjectId.isValid(id)) {
             return ThrowError(res, 400, 'Invalid Premium ID format');
         }
         const premium = await Premium.findByIdAndDelete(id);

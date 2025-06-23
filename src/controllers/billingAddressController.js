@@ -6,22 +6,28 @@ import { sendBadRequestResponse, sendSuccessResponse, sendErrorResponse } from "
 // create billingAddress (User Only)
 export const createbilling = async (req, res) => {
     try {
-        const { country, state } = req.body
+        const { country, state } = req.body;
 
-        if (!country, !state) {
-            return sendBadRequestResponse(res, "All field are required")
+        if (!country || !state) {
+            return sendBadRequestResponse(res, "All fields are required");
+        }
+
+        const existing = await billingAddressModel.findOne({ user: req.user._id });
+        if (existing) {
+            return sendBadRequestResponse(res, "You already have a billing address. Please update it instead.");
         }
 
         const billingAddress = new billingAddressModel({
             country,
-            state
-        })
+            state,
+            user: req.user._id
+        });
 
         const savedbillingAddress = await billingAddress.save();
 
         res.status(201).json({
             success: true,
-            message: "billingAddress added successfully",
+            message: "Billing address added successfully",
             userId: req.user._id,
             data: {
                 billingAddress: savedbillingAddress,
@@ -29,9 +35,9 @@ export const createbilling = async (req, res) => {
         });
 
     } catch (error) {
-        return ThrowError(res, 500, error.message)
+        return ThrowError(res, 500, error.message);
     }
-}
+};
 
 // getbillingAddressById (User Only)
 export const getBillingAddressById = async (req, res) => {

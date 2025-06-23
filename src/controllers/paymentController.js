@@ -4,17 +4,46 @@ import mongoose from 'mongoose';
 import { sendBadRequestResponse } from '../utils/ResponseUtils.js';
 import premiumModel from '../models/premiumModel.js';
 import registerModel from '../models/registerModel.js';
+
 // Create new payment record (User)
 export const createPayment = async (req, res) => {
     try {
-        const { paymentMethodType, cardNumber, cardHolderName, expiryDate, cvv, upiId, planId, billingAddressId } = req.body;
+        const userId = req.user._id;
+        const { paymentMethodType, cardNumber, cardHolderName, expiryDate, cvv, upiId, premiumPlan, billingAddressId } = req.body;
 
-        // Basic validation for required fields for Payment
-        if (!paymentMethodType || !planId) {
-            return ThrowError(res, 400, "Payment method type and planId are required fields.");
+        // Basic validation for required fields
+        if (!paymentMethodType || !premiumPlan) {
+            return sendBadRequestResponse(res, "Missing required fields: paymentMethodType, premiumPlan");
         }
 
-        // Conditional validation for Credit Card type
+        // Fetch the premium plan
+        if (!mongoose.Types.ObjectId.isValid(premiumPlan)) {
+            return sendBadRequestResponse(res, 'Invalid Premium Plan ID format.');
+        }
+        const plan = await premiumModel.findById(premiumPlan);
+        if (!plan) {
+            return sendBadRequestResponse(res, 'Premium plan not found.');
+        }
+
+        const user = await registerModel.findById(userId);
+        if (!user) {
+            return ThrowError(res, 404, 'User not found.');
+        }
+
+        // Check if user has an active subscription for the same plan
+        if (user.planId && user.endDate && new Date() < new Date(user.endDate)) {
+            if (user.planId.toString() === premiumPlan) {
+                return sendBadRequestResponse(res, 'You already have an active subscription for this plan. You can renew it after it expires.');
+            }
+        }
+
+        // Derive plan details
+        const planName = plan.type;
+        const price = plan.price;
+        const discount = 0; // or from coupon
+        const total = price - discount;
+
+        // Conditional validation for payment method
         if (paymentMethodType === 'Credit Card') {
             if (!cardNumber || !cardHolderName || !expiryDate || !cvv) {
                 return ThrowError(res, 400, "Card number, card holder name, expiry date, and CVV are required for Credit Card payments.");
@@ -31,37 +60,12 @@ export const createPayment = async (req, res) => {
             }
         }
 
-        if (!mongoose.Types.ObjectId.isValid(planId)) {
-            return ThrowError(res, 400, 'Invalid Plan ID format.');
-        }
-
         if (billingAddressId && !mongoose.Types.ObjectId.isValid(billingAddressId)) {
             return ThrowError(res, 400, 'Invalid Billing Address ID format.');
         }
 
-        const premiumPlan = await premiumModel.findById(planId);
-        if (!premiumPlan) {
-            return ThrowError(res, 404, 'Premium plan not found.');
-        }
-
-        // Derive plan details from premiumPlan
-        const planName = premiumPlan.type;
-        const price = parseFloat(premiumPlan.price);
-
-        if (isNaN(price)) {
-            return ThrowError(res, 400, "Premium plan price is invalid. Please ensure it's a number.");
-        }
-
-        const discount = 0;
-        const total = price - discount;
-
-        const user = await registerModel.findById(req.user._id);
-        if (!user) {
-            return ThrowError(res, 404, 'User not found.');
-        }
-
         let endDate = new Date();
-        switch (premiumPlan.duration) {
+        switch (plan.duration) {
             case "Weekly":
                 endDate.setDate(endDate.getDate() + 7);
                 break;
@@ -75,8 +79,10 @@ export const createPayment = async (req, res) => {
                 return ThrowError(res, 400, 'Invalid premium plan duration.');
         }
 
-        user.planId = planId;
+        user.planId = premiumPlan;
         user.endDate = endDate;
+        user.isSubscribed = true;
+        user.planStatus = "Active";
         await user.save();
 
         const newPayment = new Payment({
@@ -88,19 +94,19 @@ export const createPayment = async (req, res) => {
             upiId,
             planName,
             price,
-            discount: discount || 0,
+            discount,
             total,
-            premiumPlan: planId,
-            billingAddressId: billingAddressId || undefined,
-            user: req.user._id
+            premiumPlan,
+            billingAddressId,
+            user: userId
         });
 
         const savedPayment = await newPayment.save();
 
         return res.status(201).json({
-            message: "Payment and subscription created successfully",
-            payment: savedPayment,
-            userSubscription: { planId: user.planId, endDate: user.endDate }
+            success: true,
+            message: "Payment created successfully",
+            payment: savedPayment
         });
     } catch (error) {
         return ThrowError(res, 500, error.message);
@@ -198,10 +204,21 @@ export const deletePayment = async (req, res) => {
         if (payment.user && payment.user.toString() !== req.user._id.toString()) {
             return sendBadRequestResponse(res, 'Access denied. You can only delete your own payment records.');
         }
+
+        // Remove subscription details from the user
+        await registerModel.findByIdAndUpdate(payment.user, {
+            $set: {
+                planId: null,
+                endDate: null,
+                isSubscribed: false,
+                planStatus: "No Subscription"
+            }
+        });
+
         await Payment.findByIdAndDelete(id);
         res.status(200).json({
             success: true,
-            message: "Payment record deleted successfully"
+            message: "Payment record deleted successfully and user subscription cleared"
         });
     } catch (error) {
         return ThrowError(res, 500, error.message);
@@ -213,7 +230,8 @@ export const getMySubscription = async (req, res) => {
     try {
         const userId = req.user._id;
         const user = await registerModel.findById(userId);
-        if (!user || !user.planId) {
+        // Check for no plan or expired plan
+        if (!user || !user.planId || !user.endDate || new Date(user.endDate) < new Date()) {
             return res.status(404).json({ success: false, message: "No active subscription found" });
         }
 
@@ -222,7 +240,7 @@ export const getMySubscription = async (req, res) => {
             return res.status(404).json({ success: false, message: "Subscription plan not found" });
         }
 
-        // Format the date as "03 Sep 2024"
+        // Format the date
         const validTillDate = new Date(user.endDate);
         const options = { day: '2-digit', month: 'short', year: 'numeric' };
         const validTill = validTillDate.toLocaleDateString('en-GB', options).replace(/ /g, ' ');
@@ -230,10 +248,10 @@ export const getMySubscription = async (req, res) => {
         res.json({
             success: true,
             plan: {
-                name: plan.type,
+                name: plan.plan_name,
                 price: plan.price,
-                validTill, // formatted date
-                specification: plan.content
+                validTill,
+                specification: plan.description
             }
         });
     } catch (error) {

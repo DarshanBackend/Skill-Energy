@@ -6,6 +6,12 @@ const billingAddressSchema = mongoose.Schema({
     },
     state: {
         type: String
+    },
+    user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'register',
+        required: true,
+        unique: true
     }
 }, { timestamps: true })
 

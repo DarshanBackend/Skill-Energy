@@ -26,10 +26,6 @@ const PaymentSchema = mongoose.Schema({
         type: String,
         required: function () { return this.paymentMethodType === 'UPI'; }
     },
-    planName: {
-        type: String,
-        required: true
-    },
     price: {
         type: Number,
         required: true

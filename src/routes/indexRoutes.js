@@ -14,6 +14,7 @@ import { addCompany, deleteCompany, getAllCompanies, getCompanyById, updateCompa
 import { addMentor, deleteMentor, getAllMentors, getMentorById, getMentorsByCourse, updateMentor } from "../controllers/mentorController.js";
 import { addLanguage, deleteLanguage, getAllLanguages, getLanguageById, updateLanguage } from "../controllers/languageController.js";
 import { getDashboardStats } from "../controllers/dashboardController.js";
+import { addreminder } from "../controllers/reminderController.js";
 
 const indexRoutes = express.Router()
 
@@ -118,6 +119,14 @@ indexRoutes.get("/getLanguageById/:id", UserAuth, getLanguageById)
 indexRoutes.get("/getAllLanguages", UserAuth, getAllLanguages)
 indexRoutes.put("/updateLanguage/:id", UserAuth, isAdmin, updateLanguage)
 indexRoutes.delete("/deleteLanguage/:id", UserAuth, isAdmin, deleteLanguage)
+
+
+//Reminder Routes
+indexRoutes.post("/addreminder", UserAuth, isUser, addreminder)
+// indexRoutes.get("/getLanguageById/:id", UserAuth, getLanguageById)
+// indexRoutes.get("/getAllLanguages", UserAuth, getAllLanguages)
+// indexRoutes.put("/updateLanguage/:id", UserAuth, isUser, updateLanguage)
+// indexRoutes.delete("/deleteLanguage/:id", UserAuth, isUser, deleteLanguage)
 
 
 export default indexRoutes

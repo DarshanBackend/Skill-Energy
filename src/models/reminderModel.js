@@ -1,11 +1,17 @@
 import mongoose from "mongoose";
 
 const reminderSchema = mongoose.Schema({
+    user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'register',
+        required: true
+    },
     name: {
         type: String
     },
     time: {
-        type: Date
+        type: String,
+        required: true
     },
     frequency: {
         type: String,

@@ -14,7 +14,23 @@ import { addCompany, deleteCompany, getAllCompanies, getCompanyById, updateCompa
 import { addMentor, deleteMentor, getAllMentors, getMentorById, getMentorsByCourse, updateMentor } from "../controllers/mentorController.js";
 import { addLanguage, deleteLanguage, getAllLanguages, getLanguageById, updateLanguage } from "../controllers/languageController.js";
 import { getDashboardStats } from "../controllers/dashboardController.js";
-import { addreminder } from "../controllers/reminderController.js";
+import {
+    addreminder,
+    getAllReminders,
+    getReminderById,
+    updateReminder,
+    deleteReminder
+} from "../controllers/reminderController.js";
+import {
+    addRating,
+    getRatingById,
+    getAllRatings,
+    updateRating,
+    deleteRating,
+    getCourseRatings,
+    totalRatings
+} from "../controllers/ratingController.js";
+import { addToWishlist, clearWishlist, getUserWishlist, removeFromWishlist } from "../controllers/wishlistController.js";
 
 const indexRoutes = express.Router()
 
@@ -122,11 +138,29 @@ indexRoutes.delete("/deleteLanguage/:id", UserAuth, isAdmin, deleteLanguage)
 
 
 //Reminder Routes
-indexRoutes.post("/addreminder", UserAuth, isUser, addreminder)
-// indexRoutes.get("/getLanguageById/:id", UserAuth, getLanguageById)
-// indexRoutes.get("/getAllLanguages", UserAuth, getAllLanguages)
-// indexRoutes.put("/updateLanguage/:id", UserAuth, isUser, updateLanguage)
-// indexRoutes.delete("/deleteLanguage/:id", UserAuth, isUser, deleteLanguage)
+indexRoutes.post('/addreminder', UserAuth, isUser, addreminder);
+indexRoutes.get('/getAllReminders', UserAuth, isUser, getAllReminders);
+indexRoutes.get('/getReminderById/:id', UserAuth, isUser, getReminderById);
+indexRoutes.put('/updateReminder/:id', UserAuth, isUser, updateReminder);
+indexRoutes.delete('/deleteReminder/:id', UserAuth, isUser, deleteReminder);
+
+
+//Rating Routes
+indexRoutes.post('/addRating', UserAuth, addRating);
+indexRoutes.get('/getCourseRatings/:courseId', UserAuth, getCourseRatings);
+indexRoutes.get('/getRatingById/:id', getRatingById);
+indexRoutes.get('/getAllRatings', getAllRatings);
+indexRoutes.put('/updateRating/:id', UserAuth, updateRating);
+indexRoutes.delete('/deleteRating/:id', UserAuth, deleteRating);
+indexRoutes.get('/totalRatings', UserAuth, totalRatings);
+
+
+//Watchlist Routes
+indexRoutes.post('/addToWishlist', UserAuth, addToWishlist);
+indexRoutes.get('/getUserWishlist', UserAuth, getUserWishlist);
+indexRoutes.delete('/removeFromWishlist/:courseId', UserAuth, removeFromWishlist);
+indexRoutes.delete('/clearWishlist/:courseId', UserAuth, clearWishlist);
+
 
 
 export default indexRoutes

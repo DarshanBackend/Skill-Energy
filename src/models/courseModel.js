@@ -39,7 +39,7 @@ const courseSchema = mongoose.Schema({
     long_description: {
         type: String
     },
-    views: {
+    user: {
         type: [{
             userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
             timestamp: { type: Date, default: Date.now }

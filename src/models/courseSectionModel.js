@@ -2,13 +2,13 @@ import mongoose from "mongoose";
 
 const courseSectionSchema = new mongoose.Schema({
     courseId: { type: mongoose.Schema.Types.ObjectId, ref: "Course" },
-    sectionNo: { type: String, required: true },
+    sectionNo: { type: Number, required: true },
     section_title: { type: String, required: true },
-    total_time: { String: Number },
+    total_time: { type: Number, default: 0 },
     video: { type: String },
-    videoNo: { type: String, required: true },
+    videoNo: { type: Number, required: true },
     video_title: { type: String, required: true },
-    video_time: { type: String, required: true }
+    video_time: { type: Number, required: true }
 }, { timestamps: true });
 
 courseSectionSchema.virtual('formattedDuration').get(function () {

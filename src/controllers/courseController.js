@@ -12,7 +12,6 @@ export const createCourse = async (req, res) => {
             video_title,
             short_description,
             student,
-            rating,
             language,
             cc,
             price,
@@ -30,15 +29,15 @@ export const createCourse = async (req, res) => {
 
         // Validate files (optional: thumbnail and video)
         let thumbnailUrl = "";
-        let videoUrl = "";
+        // let videoUrl = "";
 
         if (req.files) {
             if (req.files.thumbnail && req.files.thumbnail[0]) {
                 thumbnailUrl = req.files.thumbnail[0].path || req.files.thumbnail[0].location || "";
             }
-            if (req.files.video && req.files.video[0]) {
-                videoUrl = req.files.video[0].path || req.files.video[0].location || "";
-            }
+            // if (req.files.video && req.files.video[0]) {
+            //     videoUrl = req.files.video[0].path || req.files.video[0].location || "";
+            // }
         }
 
         // Parse what_are_learn if it's a string (from form-data)
@@ -58,12 +57,11 @@ export const createCourse = async (req, res) => {
         // Create the course
         const newCourse = new Course({
             courseCategory: courseCategoryId,
-            video: videoUrl,
+            // video: videoUrl,
             thumnail: thumbnailUrl,
             video_title,
             short_description,
             student: student || '',
-            rating: rating ? parseFloat(rating) : 0,
             language: language || '',
             cc: cc || '',
             price: price ? parseFloat(price) : 0,
@@ -87,11 +85,11 @@ export const createCourse = async (req, res) => {
                         type: req.files.thumbnail[0].mimetype,
                         size: req.files.thumbnail[0].size
                     } : null,
-                    video: req.files?.video?.[0] ? {
-                        url: videoUrl,
-                        type: req.files.video[0].mimetype,
-                        size: req.files.video[0].size
-                    } : null
+                    // video: req.files?.video?.[0] ? {
+                    //     url: videoUrl,
+                    //     type: req.files.video[0].mimetype,
+                    //     size: req.files.video[0].size
+                    // } : null
                 }
             }
         });
@@ -110,9 +108,16 @@ export const getCourseById = async (req, res) => {
         }
 
         const course = await Course.findById(id).populate('courseCategory');
-
         if (!course) {
             return sendErrorResponse(res, 404, "Course not found");
+        }
+
+        // Only allow access if user is enrolled or is admin
+        const isAdmin = req.user && req.user.isAdmin;
+        const isEnrolled = course.user.some(u => u.userId.toString() === req.user._id.toString());
+
+        if (!isAdmin && !isEnrolled) {
+            return sendForbiddenResponse(res, "Access denied. You have not purchased this course.");
         }
 
         return sendSuccessResponse(res, "Course retrieved successfully", course);
@@ -143,7 +148,7 @@ export const updateCourse = async (req, res) => {
             return ThrowError(res, 400, "Invalid course ID");
         }
 
-        const { courseCategoryId, video, thumnail, video_title, short_description, student, rating, language, cc, price, what_are_learn, long_description } = req.body;
+        const { courseCategoryId,  /* video,*/ thumnail, video_title, short_description, student, rating, language, cc, price, what_are_learn, long_description } = req.body;
 
         const course = await Course.findById(req.params.id);
         if (!course) {
@@ -155,7 +160,7 @@ export const updateCourse = async (req, res) => {
         }
 
         course.courseCategory = courseCategoryId ?? course.courseCategory;
-        course.video = video ?? course.video;
+        // course.video = video ?? course.video;
         course.thumnail = thumnail ?? course.thumnail;
         course.video_title = video_title ?? course.video_title;
         course.short_description = short_description ?? course.short_description;

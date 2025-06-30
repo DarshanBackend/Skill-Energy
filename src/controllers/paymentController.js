@@ -120,6 +120,11 @@ export const getAllPayments = async (req, res) => {
             return sendBadRequestResponse(res, "Access denied. Admins only.");
         }
         const payments = await Payment.find().populate('user', 'name email');
+
+        if (!payments || payments.length === 0) {
+            return ThrowError(res, 404, 'No any payment found');
+        }
+
         res.status(200).json({
             success: true,
             message: "All payment records fetched successfully",
@@ -130,7 +135,7 @@ export const getAllPayments = async (req, res) => {
     }
 };
 
-// Get single payment record by ID (User Only)
+// Get single payment record by ID (Admin or User)
 export const getPaymentById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -141,8 +146,8 @@ export const getPaymentById = async (req, res) => {
         if (!payment) {
             return sendBadRequestResponse(res, 'Payment record not found.');
         }
-        // Only allow the user who owns the payment to access it
-        if (payment.user && payment.user.toString() !== req.user._id.toString()) {
+        // Allow admin or the user who owns the payment to access it
+        if (!req.user.isAdmin && payment.user && payment.user.toString() !== req.user._id.toString()) {
             return sendBadRequestResponse(res, 'Access denied. You can only access your own payment records.');
         }
         res.status(200).json({

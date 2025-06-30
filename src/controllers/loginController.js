@@ -207,11 +207,15 @@ export const changePassword = async (req, res) => {
 };
 
 //logoutUser
-export const logoutUser = async (req, res) => {
-    try {
-        res.cookie("token", null, { expires: new Date(Date.now()) });
-        return sendSuccessResponse(res, "User logout successfully...✅");
-    } catch (error) {
-        return sendErrorResponse(res, 400, error.message);
-    }
-};
+// export const logoutUser = async (req, res) => {
+//     try {
+//         res.cookie("token", null, {
+//             expires: new Date(Date.now()),
+//             httpOnly: true,
+//             path: "/"
+//         });
+//         return sendSuccessResponse(res, "User logout successfully...✅");
+//     } catch (error) {
+//         return sendErrorResponse(res, 400, error.message);
+//     }
+// };

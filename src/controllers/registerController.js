@@ -60,12 +60,21 @@ export const getRegisterById = async (req, res) => {
         }
 
         const register = await Register.findOne(query);
-
         if (!register) {
             return sendErrorResponse(res, 404, "User not found");
         }
 
-        return sendSuccessResponse(res, "User retrieved successfully", register);
+        // Fetch wishlist and populate courses
+        const Wishlist = (await import('../models/wishlistModel.js')).default;
+        const wishlistDoc = await Wishlist.findOne({ userId: id }).populate('courses');
+        const wishlistCourses = wishlistDoc ? wishlistDoc.courses : [];
+
+        // Prepare user response
+        const userResponse = register.toObject();
+        delete userResponse.password;
+        userResponse.wishlist = wishlistCourses;
+
+        return sendSuccessResponse(res, "User retrieved successfully", userResponse);
     } catch (error) {
         return ThrowError(res, 500, error.message)
     }

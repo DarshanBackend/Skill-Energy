@@ -2,6 +2,7 @@ import ratingModel from "../models/ratingModel.js";
 import mongoose from "mongoose";
 import { ThrowError } from "../utils/ErrorUtils.js";
 import { sendSuccessResponse } from "../utils/ResponseUtils.js";
+import Course from "../models/courseModel.js";
 
 export const addRating = async (req, res) => {
     try {
@@ -34,6 +35,20 @@ export const addRating = async (req, res) => {
 
         await newRating.save();
 
+        // Also add this rating to the Course model's ratings array
+        await Course.findByIdAndUpdate(
+            courseId,
+            {
+                $push: {
+                    ratings: {
+                        userId: userId,
+                        rating: rate,
+                        createdAt: new Date()
+                    }
+                }
+            }
+        );
+
         res.status(201).json({
             success: true,
             message: "Rating added successfully.",
@@ -48,10 +63,20 @@ export const getCourseRatings = async (req, res) => {
     try {
         const { courseId } = req.params;
 
+        // Check if courseId is valid
+        if (!mongoose.Types.ObjectId.isValid(courseId)) {
+            return res.status(400).json({ success: false, message: "Invalid course ID." });
+        }
+
         // Get all ratings with user name
         const ratings = await ratingModel.find({ courseId })
             .populate('userId', 'name')
             .sort({ createdAt: -1 });
+
+        // If no ratings found, return 404
+        if (!ratings || ratings.length === 0) {
+            return res.status(404).json({ success: false, message: "Course ID not found." });
+        }
 
         // Get count for each star
         const ratingCounts = await ratingModel.aggregate([
@@ -142,10 +167,17 @@ export const deleteRating = async (req, res) => {
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({ success: false, message: "Invalid rating ID." });
         }
-        const deleted = await ratingModel.findOneAndDelete({ _id: id, userId: req.user._id });
-        if (!deleted) {
+        // Find the rating to get courseId and userId
+        const rating = await ratingModel.findById(id);
+        if (!rating || rating.userId.toString() !== req.user._id.toString()) {
             return res.status(404).json({ success: false, message: "No any Rating found" });
         }
+        // Delete the rating from ratingModel
+        await ratingModel.findByIdAndDelete(id);
+        // Remove the user's rating from the Course model's ratings array
+        await Course.findByIdAndUpdate(rating.courseId, {
+            $pull: { ratings: { userId: req.user._id } }
+        });
         res.status(200).json({ success: true, message: "Rating deleted." });
     } catch (error) {
         return ThrowError(res, 500, error.message);

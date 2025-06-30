@@ -68,9 +68,7 @@ registerSchema.methods.getJWT = async function () {
         _id: user._id,
         role: user.role || 'user',
         isAdmin: user.role === 'admin'
-    }, process.env.JWT_SECRET, {
-        expiresIn: "8h"  // Match the cookie expiration time
-    });
+    }, process.env.JWT_SECRET);
     return token;
 };
 

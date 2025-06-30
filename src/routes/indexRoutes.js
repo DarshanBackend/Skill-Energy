@@ -2,7 +2,7 @@ import express from "express";
 import { upload, convertJfifToJpeg } from "../middlewares/imageupload.js";
 import { isAdmin, isUser, UserAuth } from "../middlewares/auth.js";
 import { createRegister, getRegisterById, getAllUsers, updateProfileUser, updateProfileAdmin } from "../controllers/registerController.js";
-import { changePassword, forgotPassword, loginUser, logoutUser, resetPassword, VerifyEmail } from '../controllers/loginController.js';
+import { changePassword, forgotPassword, loginUser, resetPassword, VerifyEmail } from '../controllers/loginController.js';
 import { createCourse, getCourseById, getAllCourses, updateCourse, deleteCourse } from '../controllers/courseController.js';
 import { createCourseCategory, deleteCourseCategory, getAllCourseCategories, getCourseCategoryById, updateCourseCategory } from "../controllers/courseCategoryController.js";
 import { createPremium, deletePremium, getAllPremium, getPremiumById, updatePremium } from "../controllers/premiumController.js";
@@ -31,6 +31,7 @@ import {
     totalRatings
 } from "../controllers/ratingController.js";
 import { addToWishlist, clearWishlist, getUserWishlist, removeFromWishlist } from "../controllers/wishlistController.js";
+import { addToCart, clearCart, getCart, removeFromCart } from "../controllers/cartController.js";
 
 const indexRoutes = express.Router()
 
@@ -51,15 +52,15 @@ indexRoutes.post('/forgotPassword', forgotPassword);
 indexRoutes.post('/VerifyEmail', VerifyEmail);
 indexRoutes.post('/resetPassword', resetPassword);
 indexRoutes.post('/changePassword', UserAuth, changePassword);
-indexRoutes.post('/logoutUser', UserAuth, logoutUser);
+// indexRoutes.post('/logoutUser', UserAuth, logoutUser);
 
 
 //course Routes
-indexRoutes.post('/createCourse', UserAuth, upload.fields([{ name: 'thumbnail', maxCount: 1 }, { name: 'video', maxCount: 1 }]), createCourse);
+indexRoutes.post('/createCourse', UserAuth, isAdmin, upload.fields([{ name: 'thumbnail', maxCount: 1 }, { name: 'video', maxCount: 1 }]), createCourse);
 indexRoutes.get('/getAllCourses', UserAuth, getAllCourses);
 indexRoutes.get('/getCourseById/:id', UserAuth, getCourseById);
-indexRoutes.put('/updateCourse/:id', upload.fields([{ name: 'thumbnail', maxCount: 1 }, { name: 'video', maxCount: 1 }]), UserAuth, updateCourse);
-indexRoutes.delete('/deleteCourse/:id', UserAuth, deleteCourse);
+indexRoutes.put('/updateCourse/:id', upload.fields([{ name: 'thumbnail', maxCount: 1 }, { name: 'video', maxCount: 1 }]), UserAuth, isAdmin, updateCourse);
+indexRoutes.delete('/deleteCourse/:id', UserAuth, isAdmin, deleteCourse);
 
 
 //couresCategory Routes
@@ -95,7 +96,7 @@ indexRoutes.put("/updateBillingAddress/:id", UserAuth, isUser, updateBillingAddr
 indexRoutes.delete("/deleteBillingAddress/:id", UserAuth, isUser, deleteBillingAddress)
 
 
-//billingAddress Routes
+//deleteAccount Routes
 indexRoutes.post("/createReasonCancel", UserAuth, createReasonCancel)
 indexRoutes.get("/getReasonCancelById/:id", UserAuth, getReasonCancelById)
 indexRoutes.get("/getAllReasonCancel", UserAuth, isAdmin, getAllReasonCancel)
@@ -105,11 +106,11 @@ indexRoutes.delete("/deleteMyAccount", UserAuth, deleteMyAccount)
 
 
 //courseSection Routes
-indexRoutes.post("/createSection", UserAuth, createSection)
-indexRoutes.post("/getSectionById", UserAuth, getSectionById)
-indexRoutes.post("/getAllSections", UserAuth, getAllSections)
-indexRoutes.post("/updateSection", UserAuth, updateSection)
-indexRoutes.post("/deleteSection", UserAuth, deleteSection)
+indexRoutes.post("/createSection", UserAuth, isAdmin, upload.fields([{ name: 'video', maxCount: 1 }]), createSection)
+indexRoutes.get("/getSectionById/:id", UserAuth, getSectionById)
+indexRoutes.get("/getAllSections", UserAuth, getAllSections)
+indexRoutes.put("/updateSection/:id", UserAuth, isAdmin, upload.fields([{ name: 'video', maxCount: 1 }]), updateSection)
+indexRoutes.delete("/deleteSection/:id", UserAuth, isAdmin, deleteSection)
 
 
 //company Routes
@@ -146,21 +147,27 @@ indexRoutes.delete('/deleteReminder/:id', UserAuth, isUser, deleteReminder);
 
 
 //Rating Routes
-indexRoutes.post('/addRating', UserAuth, addRating);
+indexRoutes.post('/addRating', UserAuth, isUser, addRating);
 indexRoutes.get('/getCourseRatings/:courseId', UserAuth, getCourseRatings);
 indexRoutes.get('/getRatingById/:id', getRatingById);
 indexRoutes.get('/getAllRatings', getAllRatings);
-indexRoutes.put('/updateRating/:id', UserAuth, updateRating);
-indexRoutes.delete('/deleteRating/:id', UserAuth, deleteRating);
+indexRoutes.put('/updateRating/:id', UserAuth, isUser, updateRating);
+indexRoutes.delete('/deleteRating/:id', UserAuth, isUser, deleteRating);
 indexRoutes.get('/totalRatings', UserAuth, totalRatings);
 
 
 //Watchlist Routes
-indexRoutes.post('/addToWishlist', UserAuth, addToWishlist);
-indexRoutes.get('/getUserWishlist', UserAuth, getUserWishlist);
-indexRoutes.delete('/removeFromWishlist/:courseId', UserAuth, removeFromWishlist);
-indexRoutes.delete('/clearWishlist/:courseId', UserAuth, clearWishlist);
+indexRoutes.post('/addToWishlist', UserAuth, isUser, addToWishlist);
+indexRoutes.get('/getUserWishlist', UserAuth, isUser, getUserWishlist);
+indexRoutes.delete('/removeFromWishlist/:courseId', UserAuth, isUser, removeFromWishlist);
+indexRoutes.delete('/clearWishlist/:courseId', UserAuth, isUser, clearWishlist);
 
+
+//Cart Routes
+indexRoutes.post('/addToCart', UserAuth, isUser, addToCart);
+indexRoutes.get('/getCart', UserAuth, isUser, getCart);
+indexRoutes.delete('/removeFromCart/:courseId', UserAuth, isUser, removeFromCart);
+indexRoutes.delete('/clearCart/:courseId', UserAuth, isUser, clearCart);
 
 
 export default indexRoutes

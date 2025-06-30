@@ -4,6 +4,7 @@ import { ThrowError } from "../utils/ErrorUtils.js";
 import Course from "../models/courseModel.js";
 import { S3Client, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import dotenv from 'dotenv';
+import { sendBadRequestResponse } from "../utils/ResponseUtils.js"
 
 dotenv.config();
 
@@ -40,25 +41,20 @@ const deleteFileFromS3 = async (fileUrl) => {
 // Create a new section
 export const createSection = async (req, res) => {
     try {
-        const { courseId, videoNo, total_time, sectionNo, section_title, video_title, video_time } = req.body;
+        const { courseId, videoNo, sectionNo, section_title, video_title, video_time } = req.body;
 
         // Validate required fields
         if (!courseId || !videoNo || !sectionNo || !section_title || !video_title || !video_time) {
-            return ThrowError(res, 400, "Missing required fields: All field are required");
+            return ThrowError(res, 400, "Missing required fields: All fields are required");
         }
 
         // Validate files
-        if (!req.files) {
-            return ThrowError(res, 400, "No files were uploaded. Please upload video files.");
-        }
-
-        // Check if video exists in files
-        if (!req.files.video || !req.files.video[0]) {
-            return ThrowError(res, 400, "Video file is missing. Please upload a video file.");
-        }
+        // if (!req.files || !req.files.video || !req.files.video[0]) {
+        //     return ThrowError(res, 400, "Video file is missing. Please upload a video file.");
+        // }
 
         // Get file URLs from req.files
-        const video = req.files.video[0].location;
+        // const video = req.files.video[0].location;
 
         if (!mongoose.Types.ObjectId.isValid(courseId)) {
             return ThrowError(res, 400, "Invalid course ID");
@@ -70,52 +66,76 @@ export const createSection = async (req, res) => {
             return ThrowError(res, 404, "Parent course not found");
         }
 
-        // Check for duplicate section title in the same course
-        const existingSectionWithTitle = await CourseSection.findOne({
-            courseId,
-            section_title: { $regex: new RegExp(`^${section_title}$`, 'i') } // Case-insensitive match
-        });
+        // --- Parse all numeric inputs ---
 
-        if (existingSectionWithTitle) {
-            return ThrowError(res, 400, "A section with this title already exists for this course");
+        const parsedSectionNo = parseInt(sectionNo, 10);
+        const parsedVideoNo = parseInt(videoNo, 10);
+        // Strip any non-numeric characters and then parse
+        const numericVideoTimeString = video_time.toString().replace(/[^0-9]/g, '');
+        const parsedVideoTime = parseInt(numericVideoTimeString, 10);
+
+        if (isNaN(parsedVideoTime)) {
+            return ThrowError(res, 400, "Invalid format for video_time. Please provide a number.");
         }
 
-        // Check for duplicate video number in the same section
-        const existingSectionWithNumber = await CourseSection.findOne({
+        // Check for duplicate video with the same videoNo or video_title in the same section
+        const existingVideo = await CourseSection.findOne({
             courseId,
-            sectionNo,
-            videoNo
+            sectionNo: parsedSectionNo,
+            $or: [
+                { videoNo: parsedVideoNo },
+                { video_title: video_title }
+            ]
         });
 
-        if (existingSectionWithNumber) {
-            return ThrowError(res, 400, "A video with this section and video number already exists");
+        if (existingVideo) {
+            let message = "A video with the same ";
+            if (existingVideo.videoNo === parsedVideoNo && existingVideo.video_title === video_title) {
+                message += "number and title";
+            } else if (existingVideo.videoNo === parsedVideoNo) {
+                message += "number";
+            } else {
+                message += "title";
+            }
+            message += " already exists in this section.";
+            return ThrowError(res, 400, message);
         }
 
         const section = new CourseSection({
             courseId,
-            sectionNo,
+            sectionNo: parsedSectionNo,
             section_title,
-            total_time: total_time ? parseInt(total_time) : undefined,
-            video,
-            videoNo,
+            // video,
+            videoNo: parsedVideoNo,
             video_title,
-            video_time
+            video_time: parsedVideoTime
         });
 
         const savedSection = await section.save();
 
-        // Return a more detailed response
+        // --- Automatic Total Time Calculation ---
+        const sectionVideos = await CourseSection.find({ courseId, sectionNo: parsedSectionNo });
+        const newTotalTime = sectionVideos.reduce((sum, vid) => sum + (vid.video_time || 0), 0);
+
+        await CourseSection.updateMany(
+            { courseId, sectionNo: parsedSectionNo },
+            { $set: { total_time: newTotalTime } }
+        );
+
+        // Fetch the created section again to get the updated total_time
+        const updatedSavedSection = await CourseSection.findById(savedSection._id);
+
         res.status(201).json({
             status: true,
-            message: "Section created successfully",
+            message: "Section video created successfully ",
             data: {
-                section: savedSection,
+                section: updatedSavedSection,
                 fileInfo: {
-                    video: {
-                        url: video,
-                        type: req.files.video[0].mimetype,
-                        size: req.files.video[0].size
-                    }
+                    // video: {
+                    //     url: video,
+                    //     type: req.files.video[0].mimetype,
+                    //     size: req.files.video[0].size
+                    // }
                 }
             }
         });
@@ -200,17 +220,53 @@ export const updateSection = async (req, res) => {
             }
         }
 
+        // --- Duplicate check (exclude current section) ---
+        const parsedSectionNo = sectionNo !== undefined ? parseInt(sectionNo, 10) : section.sectionNo;
+        const parsedVideoNo = videoNo !== undefined ? parseInt(videoNo, 10) : section.videoNo;
+        const videoTitleToCheck = video_title !== undefined ? video_title : section.video_title;
+        const duplicate = await CourseSection.findOne({
+            _id: { $ne: section._id },
+            courseId: courseId ?? section.courseId,
+            sectionNo: parsedSectionNo,
+            $or: [
+                { videoNo: parsedVideoNo },
+                { video_title: videoTitleToCheck }
+            ]
+        });
+        if (duplicate) {
+            let message = "A video with the same ";
+            if (duplicate.videoNo === parsedVideoNo && duplicate.video_title === videoTitleToCheck) {
+                message += "number and title";
+            } else if (duplicate.videoNo === parsedVideoNo) {
+                message += "number";
+            } else {
+                message += "title";
+            }
+            message += " already exists in this section.";
+            return ThrowError(res, 400, message);
+        }
+
         section.courseId = courseId ?? section.courseId;
-        section.sectionNo = sectionNo ?? section.sectionNo;
+        section.sectionNo = sectionNo !== undefined ? parsedSectionNo : section.sectionNo;
         section.section_title = section_title ?? section.section_title;
         section.total_time = total_time !== undefined ? parseInt(total_time) : section.total_time;
         section.video = video ?? section.video;
-        section.videoNo = videoNo ?? section.videoNo;
+        section.videoNo = videoNo !== undefined ? parsedVideoNo : section.videoNo;
         section.video_title = video_title ?? section.video_title;
-        section.video_time = video_time ?? section.video_time;
+        section.video_time = video_time !== undefined ? parseInt(video_time) : section.video_time;
 
-        const updatedSection = await section.save();
-        res.status(200).json(updatedSection);
+
+        // --- Automatic Total Time Calculation (after update) ---
+        const sectionVideos = await CourseSection.find({ courseId: section.courseId, sectionNo: section.sectionNo });
+        const newTotalTime = sectionVideos.reduce((sum, vid) => sum + (vid.video_time || 0), 0);
+        await CourseSection.updateMany(
+            { courseId: section.courseId, sectionNo: section.sectionNo },
+            { $set: { total_time: newTotalTime } }
+        );
+        // Fetch the updated section again to get the new total_time
+        const updatedSectionWithTotal = await CourseSection.findById(section._id);
+
+        res.status(200).json(updatedSectionWithTotal);
     } catch (error) {
         return ThrowError(res, 500, error.message);
     }

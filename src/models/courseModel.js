@@ -46,7 +46,7 @@ const courseSchema = mongoose.Schema({
         }],
         default: []
     },
-    rating: { type: Number, default: 0 },
+    // rating: { type: Number, default: 0 },
     ratings: [{
         userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         rating: { type: Number, min: 1, max: 5 },

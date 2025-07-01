@@ -13,30 +13,24 @@ import { createSection, deleteSection, getAllSections, getSectionById, updateSec
 import { addCompany, deleteCompany, getAllCompanies, getCompanyById, updateCompany } from "../controllers/companyController.js";
 import { addMentor, deleteMentor, getAllMentors, getMentorById, getMentorsByCourse, updateMentor } from "../controllers/mentorController.js";
 import { addLanguage, deleteLanguage, getAllLanguages, getLanguageById, updateLanguage } from "../controllers/languageController.js";
-import { getDashboardStats } from "../controllers/dashboardController.js";
-import {
-    addreminder,
-    getAllReminders,
-    getReminderById,
-    updateReminder,
-    deleteReminder
-} from "../controllers/reminderController.js";
-import {
-    addRating,
-    getRatingById,
-    getAllRatings,
-    updateRating,
-    deleteRating,
-    getCourseRatings,
-    totalRatings
-} from "../controllers/ratingController.js";
+import { addreminder, getAllReminders, getReminderById, updateReminder, deleteReminder } from "../controllers/reminderController.js";
+import { addRating, getRatingById, getAllRatings, updateRating, deleteRating, getCourseRatings, totalRatings } from "../controllers/ratingController.js";
 import { addToWishlist, clearWishlist, getUserWishlist, removeFromWishlist } from "../controllers/wishlistController.js";
 import { addToCart, clearCart, getCart, removeFromCart } from "../controllers/cartController.js";
+import { createCoursePayment, getAllCoursePayments, getCoursePaymentById, updateCoursePayment, deleteCoursePayment } from "../controllers/coursePaymentController.js";
+import { getDashboardStats, getLatestCourses, getPopularBusinessCourses, getPopularDesignCourses, getPopularDevelopmentCourses, getLernersareviewing, getTopMentors } from "../controllers/dashboardController.js";
 
 const indexRoutes = express.Router()
 
 //dashbord Routes
 indexRoutes.get('/getDashboardStats', UserAuth, isAdmin, getDashboardStats);
+indexRoutes.get('/getLatestCourses', UserAuth, getLatestCourses);
+indexRoutes.get('/getPopularDesignCourses', UserAuth, getPopularDesignCourses);
+indexRoutes.get('/getPopularDevelopmentCourses', UserAuth, getPopularDevelopmentCourses);
+indexRoutes.get('/getPopularBusinessCourses', UserAuth, getPopularBusinessCourses);
+indexRoutes.get('/getLernersareviewing', UserAuth, getLernersareviewing);
+indexRoutes.get('/getTopMentors', UserAuth, getTopMentors);
+
 
 //Regitser Routes
 indexRoutes.post("/createRegister", createRegister)
@@ -61,6 +55,7 @@ indexRoutes.get('/getAllCourses', UserAuth, getAllCourses);
 indexRoutes.get('/getCourseById/:id', UserAuth, getCourseById);
 indexRoutes.put('/updateCourse/:id', upload.fields([{ name: 'thumbnail', maxCount: 1 }, { name: 'video', maxCount: 1 }]), UserAuth, isAdmin, updateCourse);
 indexRoutes.delete('/deleteCourse/:id', UserAuth, isAdmin, deleteCourse);
+indexRoutes.get('/getPopularDesignCourses', UserAuth, getPopularDesignCourses);
 
 
 //couresCategory Routes
@@ -168,6 +163,16 @@ indexRoutes.post('/addToCart', UserAuth, isUser, addToCart);
 indexRoutes.get('/getCart', UserAuth, isUser, getCart);
 indexRoutes.delete('/removeFromCart/:courseId', UserAuth, isUser, removeFromCart);
 indexRoutes.delete('/clearCart/:courseId', UserAuth, isUser, clearCart);
+
+
+//coursePayment Routes
+indexRoutes.post("/createCoursePayment", UserAuth, isUser, createCoursePayment);
+indexRoutes.get("/getAllCoursePayments", UserAuth, isAdmin, getAllCoursePayments);
+indexRoutes.get("/getCoursePaymentById/:id", UserAuth, isUser, getCoursePaymentById);
+indexRoutes.put("/updateCoursePayment/:id", UserAuth, isUser, updateCoursePayment);
+indexRoutes.delete("/deleteCoursePayment/:id", UserAuth, isUser, deleteCoursePayment);
+
+
 
 
 export default indexRoutes

@@ -4,16 +4,17 @@ import mongoose from 'mongoose';
 import { sendBadRequestResponse } from '../utils/ResponseUtils.js';
 import premiumModel from '../models/premiumModel.js';
 import registerModel from '../models/registerModel.js';
+import billingAddressModel from '../models/billingAddressModel.js';
 
 // Create new payment record (User)
 export const createPayment = async (req, res) => {
     try {
         const userId = req.user._id;
-        const { paymentMethodType, cardNumber, cardHolderName, expiryDate, cvv, upiId, premiumPlan, billingAddressId } = req.body;
+        const { transactionId, premiumPlan, billingAddressId } = req.body;
 
         // Basic validation for required fields
-        if (!paymentMethodType || !premiumPlan) {
-            return sendBadRequestResponse(res, "Missing required fields: paymentMethodType, premiumPlan");
+        if (!transactionId || !premiumPlan) {
+            return sendBadRequestResponse(res, "Missing required fields: transactionId, premiumPlan");
         }
 
         // Fetch the premium plan
@@ -43,25 +44,20 @@ export const createPayment = async (req, res) => {
         const discount = 0; // or from coupon
         const total = price - discount;
 
-        // Conditional validation for payment method
-        if (paymentMethodType === 'Credit Card') {
-            if (!cardNumber || !cardHolderName || !expiryDate || !cvv) {
-                return ThrowError(res, 400, "Card number, card holder name, expiry date, and CVV are required for Credit Card payments.");
-            }
-            if (upiId) {
-                return ThrowError(res, 400, "UPI ID should not be provided for Credit Card payments.");
-            }
-        } else if (paymentMethodType === 'UPI') {
-            if (!upiId) {
-                return ThrowError(res, 400, "UPI ID is required for UPI payments.");
-            }
-            if (cardNumber || cardHolderName || expiryDate || cvv) {
-                return ThrowError(res, 400, "Card details should not be provided for UPI payments.");
-            }
-        }
-
+        // Check if billing address exists
         if (billingAddressId && !mongoose.Types.ObjectId.isValid(billingAddressId)) {
             return ThrowError(res, 400, 'Invalid Billing Address ID format.');
+        }
+
+        // If billingAddressId is provided, ensure it belongs to the logged-in user
+        if (billingAddressId) {
+            const billingAddress = await billingAddressModel.findById(billingAddressId);
+            if (!billingAddress) {
+                return ThrowError(res, 404, 'Billing address not found.');
+            }
+            if (billingAddress.user.toString() !== userId.toString()) {
+                return ThrowError(res, 403, 'You are not authorized to use this billing address.');
+            }
         }
 
         let endDate = new Date();
@@ -86,12 +82,7 @@ export const createPayment = async (req, res) => {
         await user.save();
 
         const newPayment = new Payment({
-            paymentMethodType,
-            cardNumber,
-            cardHolderName,
-            expiryDate,
-            cvv,
-            upiId,
+            transactionId,
             planName,
             price,
             discount,

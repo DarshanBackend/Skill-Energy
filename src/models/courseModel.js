@@ -24,6 +24,10 @@ const courseSchema = mongoose.Schema({
     last_updated: {
         type: Date
     },
+    course_languageId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Language"
+    },
     language: {
         type: String
     },

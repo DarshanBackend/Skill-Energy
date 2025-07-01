@@ -12,6 +12,7 @@ export const createCourse = async (req, res) => {
             video_title,
             short_description,
             student,
+            course_languageId,
             language,
             cc,
             price,
@@ -19,12 +20,27 @@ export const createCourse = async (req, res) => {
             long_description
         } = req.body;
 
-        // Validate required text fields
+        // Validate required text fieldsz
         if (!video_title || !short_description || !price || !courseCategoryId) {
             return ThrowError(res, 400, "Missing required fields: courseCategoryId, video_title, short_description, and price are required");
         }
         if (!mongoose.Types.ObjectId.isValid(courseCategoryId)) {
             return ThrowError(res, 400, "Invalid courseCategoryId");
+        }
+        if (!mongoose.Types.ObjectId.isValid(course_languageId)) {
+            return ThrowError(res, 400, "Invalid course_languageId");
+        }
+
+        // Check if courseCategoryId exists
+        const courseCategoryExists = await mongoose.model('CourseCategory').findById(courseCategoryId);
+        if (!courseCategoryExists) {
+            return ThrowError(res, 404, "Course category not found");
+        }
+
+        // Check if course_languageId exists
+        const languageExists = await mongoose.model('Language').findById(course_languageId);
+        if (!languageExists) {
+            return ThrowError(res, 404, "course_language not found");
         }
 
         // Validate files (optional: thumbnail and video)
@@ -54,6 +70,12 @@ export const createCourse = async (req, res) => {
             }
         }
 
+        // Prevent duplicate course by video_title
+        const existingCourse = await Course.findOne({ video_title });
+        if (existingCourse) {
+            return ThrowError(res, 400, "A course with this name (video_title) already exists.");
+        }
+
         // Create the course
         const newCourse = new Course({
             courseCategory: courseCategoryId,
@@ -62,6 +84,7 @@ export const createCourse = async (req, res) => {
             video_title,
             short_description,
             student: student || '',
+            course_languageId: course_languageId || '',
             language: language || '',
             cc: cc || '',
             price: price ? parseFloat(price) : 0,
@@ -112,12 +135,14 @@ export const getCourseById = async (req, res) => {
             return sendErrorResponse(res, 404, "Course not found");
         }
 
-        // Only allow access if user is enrolled or is admin
+        // Only allow access if user is admin or has purchased the course
         const isAdmin = req.user && req.user.isAdmin;
-        const isEnrolled = course.user.some(u => u.userId.toString() === req.user._id.toString());
-
-        if (!isAdmin && !isEnrolled) {
-            return sendForbiddenResponse(res, "Access denied. You have not purchased this course.");
+        if (!isAdmin) {
+            const CoursePayment = (await import('../models/coursePaymentModel.js')).default;
+            const hasPaid = await CoursePayment.findOne({ courseId: id, user: req.user._id });
+            if (!hasPaid) {
+                return sendForbiddenResponse(res, "Access denied. You have not purchased this course.");
+            }
         }
 
         return sendSuccessResponse(res, "Course retrieved successfully", course);
@@ -148,15 +173,23 @@ export const updateCourse = async (req, res) => {
             return ThrowError(res, 400, "Invalid course ID");
         }
 
-        const { courseCategoryId,  /* video,*/ thumnail, video_title, short_description, student, rating, language, cc, price, what_are_learn, long_description } = req.body;
+        const { courseCategoryId,  /* video,*/ thumnail, video_title, short_description, student, rating, course_languageId, language, cc, price, what_are_learn, long_description } = req.body;
 
         const course = await Course.findById(req.params.id);
         if (!course) {
             return ThrowError(res, 404, "Course not found");
         }
 
-        if (courseCategoryId && !mongoose.Types.ObjectId.isValid(courseCategoryId)) {
-            return ThrowError(res, 400, "Invalid courseCategoryId");
+        // Check if courseCategoryId exists
+        const courseCategoryExists = await mongoose.model('CourseCategory').findById(courseCategoryId);
+        if (!courseCategoryExists) {
+            return ThrowError(res, 404, "Course category not found");
+        }
+
+        // Check if course_languageId exists
+        const languageExists = await mongoose.model('Language').findById(course_languageId);
+        if (!languageExists) {
+            return ThrowError(res, 404, "course_language not found");
         }
 
         course.courseCategory = courseCategoryId ?? course.courseCategory;
@@ -166,6 +199,7 @@ export const updateCourse = async (req, res) => {
         course.short_description = short_description ?? course.short_description;
         course.student = student ?? course.student;
         course.rating = rating ?? course.rating;
+        course.course_languageId = course_languageId ?? course.course_languageId;
         course.language = language ?? course.language;
         course.cc = cc ?? course.cc;
         course.price = price ?? course.price;

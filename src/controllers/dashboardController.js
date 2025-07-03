@@ -6,6 +6,7 @@ import CoursePayment from '../models/coursePaymentModel.js';
 import Premium from '../models/premiumModel.js';
 import CourseCategory from '../models/courseCategoryModel.js';
 import Mentor from '../models/mentorModel.js';
+import { ThrowError } from '../utils/ErrorUtils.js';
 
 export const getDashboardStats = async (req, res) => {
     try {
@@ -155,19 +156,32 @@ export const getPopularBusinessCourses = async (req, res) => {
 // Get Lerners are viewing (limit 10, sorted by number of users who purchased)
 export const getLernersareviewing = async (req, res) => {
     try {
-        // Get all course IDs the user has purchased
-        const paidCoursePayments = await CoursePayment.find({ user: req.user._id }).select('courseId');
-        const paidCourseIds = paidCoursePayments.map(cp => cp.courseId);
+        // 1. Aggregate purchase counts
+        const topCourses = await CoursePayment.aggregate([
+            { $group: { _id: "$courseId", purchaseCount: { $sum: 1 } } }
+        ]);
 
-        // Find those courses and sort by number of users who purchased (descending)
-        const courses = await Course.find({ _id: { $in: paidCourseIds } })
-            .sort({ 'user.length': -1 })
-            .limit(10)
-            .populate('courseCategory');
+        // 2. Map courseId to purchaseCount
+        const purchaseCountMap = {};
+        topCourses.forEach(tc => {
+            purchaseCountMap[tc._id.toString()] = tc.purchaseCount;
+        });
+
+        // 3. Get all courses
+        let courses = await Course.find({}).populate('courseCategory').lean();
+
+        // 4. Attach purchaseCount to each course
+        courses = courses.map(course => ({
+            ...course,
+            purchaseCount: purchaseCountMap[course._id.toString()] || 0
+        }));
+
+        // 5. Sort by purchaseCount descending
+        courses.sort((a, b) => b.purchaseCount - a.purchaseCount);
 
         return res.status(200).json({
             success: true,
-            message: "Top purchased courses (that you bought) fetched successfully",
+            message: "Lernersare viewing courses fetched successfully",
             data: courses
         });
     } catch (error) {

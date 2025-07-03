@@ -9,7 +9,7 @@ import { createPremium, deletePremium, getAllPremium, getPremiumById, updatePrem
 import { createPayment, deletePayment, getAllPayments, getPaymentById, updatePayment, getMySubscription } from "../controllers/paymentController.js";
 import { createbilling, deleteBillingAddress, getAllBillingAddress, getBillingAddressById, updateBillingAddress } from "../controllers/billingAddressController.js";
 import { createReasonCancel, deleteMyAccount, deleteReasonCancel, getAllReasonCancel, getReasonCancelById, updateReasonCancel } from "../controllers/reasonDeleteAccountController.js";
-import { createSection, deleteSection, getAllSections, getSectionById, updateSection } from "../controllers/courseSectionController.js";
+import { createSection, deleteSection, getSectionById, getSectionsByCourseId, updateSection } from "../controllers/courseSectionController.js";
 import { addCompany, deleteCompany, getAllCompanies, getCompanyById, updateCompany } from "../controllers/companyController.js";
 import { addMentor, deleteMentor, getAllMentors, getMentorById, getMentorsByCourse, updateMentor } from "../controllers/mentorController.js";
 import { addLanguage, deleteLanguage, getAllLanguages, getLanguageById, updateLanguage } from "../controllers/languageController.js";
@@ -49,13 +49,12 @@ indexRoutes.post('/changePassword', UserAuth, changePassword);
 // indexRoutes.post('/logoutUser', UserAuth, logoutUser);
 
 
-//course Routes
-indexRoutes.post('/createCourse', UserAuth, isAdmin, upload.fields([{ name: 'thumbnail', maxCount: 1 }, { name: 'video', maxCount: 1 }]), createCourse);
-indexRoutes.get('/getAllCourses', UserAuth, getAllCourses);
-indexRoutes.get('/getCourseById/:id', UserAuth, getCourseById);
-indexRoutes.put('/updateCourse/:id', upload.fields([{ name: 'thumbnail', maxCount: 1 }, { name: 'video', maxCount: 1 }]), UserAuth, isAdmin, updateCourse);
-indexRoutes.delete('/deleteCourse/:id', UserAuth, isAdmin, deleteCourse);
-indexRoutes.get('/getPopularDesignCourses', UserAuth, getPopularDesignCourses);
+//language Routes
+indexRoutes.post("/addLanguage", UserAuth, isAdmin, upload.single('language_thumbnail'), convertJfifToJpeg, addLanguage)
+indexRoutes.get("/getLanguageById/:id", UserAuth, getLanguageById)
+indexRoutes.get("/getAllLanguages", UserAuth, getAllLanguages)
+indexRoutes.put("/updateLanguage/:id", UserAuth, isAdmin, upload.single('language_thumbnail'), convertJfifToJpeg, updateLanguage)
+indexRoutes.delete("/deleteLanguage/:id", UserAuth, isAdmin, deleteLanguage)
 
 
 //couresCategory Routes
@@ -66,54 +65,29 @@ indexRoutes.put("/updateCourseCategory/:id", UserAuth, isAdmin, updateCourseCate
 indexRoutes.delete("/deleteCourseCategory/:id", UserAuth, isAdmin, deleteCourseCategory)
 
 
-//premium Routes
-indexRoutes.post("/createPremium", UserAuth, isAdmin, createPremium)
-indexRoutes.get("/getAllPremium", UserAuth, getAllPremium)
-indexRoutes.get("/getPremiumById/:id", UserAuth, isAdmin, getPremiumById)
-indexRoutes.put("/updatePremium/:id", UserAuth, isAdmin, updatePremium)
-indexRoutes.delete("/deletePremium/:id", UserAuth, isAdmin, deletePremium)
-
-
-//payment Routes
-indexRoutes.post("/createPayment", UserAuth, isUser, createPayment)
-indexRoutes.get("/getAllPayments", UserAuth, isAdmin, getAllPayments)
-indexRoutes.get("/getPaymentById/:id", UserAuth, isUser, getPaymentById)
-indexRoutes.put("/updatePayment/:id", UserAuth, isUser, updatePayment)
-indexRoutes.delete("/deletePayment/:id", UserAuth, isUser, deletePayment)
-indexRoutes.get('/getMySubscription', UserAuth, isUser, getMySubscription);
-
-
-//billingAddress Routes
-indexRoutes.post("/createbilling", UserAuth, isUser, createbilling)
-indexRoutes.get("/getBillingAddressById/:id", UserAuth, getBillingAddressById)
-indexRoutes.get("/getAllBillingAddress", UserAuth, isAdmin, getAllBillingAddress)
-indexRoutes.put("/updateBillingAddress/:id", UserAuth, isUser, updateBillingAddress)
-indexRoutes.delete("/deleteBillingAddress/:id", UserAuth, isUser, deleteBillingAddress)
-
-
-//deleteAccount Routes
-indexRoutes.post("/createReasonCancel", UserAuth, createReasonCancel)
-indexRoutes.get("/getReasonCancelById/:id", UserAuth, getReasonCancelById)
-indexRoutes.get("/getAllReasonCancel", UserAuth, isAdmin, getAllReasonCancel)
-indexRoutes.put("/updateReasonCancel/:id", UserAuth, updateReasonCancel)
-indexRoutes.delete("/deleteReasonCancel/:id", UserAuth, deleteReasonCancel)
-indexRoutes.delete("/deleteMyAccount", UserAuth, deleteMyAccount)
-
-
-//courseSection Routes
-indexRoutes.post("/createSection", UserAuth, isAdmin, upload.fields([{ name: 'video', maxCount: 1 }]), createSection)
-indexRoutes.get("/getSectionById/:id", UserAuth, getSectionById)
-indexRoutes.get("/getAllSections", UserAuth, getAllSections)
-indexRoutes.put("/updateSection/:id", UserAuth, isAdmin, upload.fields([{ name: 'video', maxCount: 1 }]), updateSection)
-indexRoutes.delete("/deleteSection/:id", UserAuth, isAdmin, deleteSection)
-
-
 //company Routes
 indexRoutes.post("/addCompany", UserAuth, isAdmin, upload.single("companyImage"), convertJfifToJpeg, addCompany)
 indexRoutes.get("/getCompanyById/:id", UserAuth, isAdmin, getCompanyById)
 indexRoutes.get("/getAllCompanies", UserAuth, getAllCompanies)
 indexRoutes.put("/updateCompany/:id", UserAuth, isAdmin, upload.single("companyImage"), convertJfifToJpeg, updateCompany)
 indexRoutes.delete("/deleteCompany/:id", UserAuth, isAdmin, deleteCompany)
+
+
+//course Routes
+indexRoutes.post('/createCourse', UserAuth, isAdmin, upload.single('thumbnail'), convertJfifToJpeg, createCourse);
+indexRoutes.get('/getAllCourses', UserAuth, getAllCourses);
+indexRoutes.get('/getCourseById/:id', UserAuth, getCourseById);
+indexRoutes.put('/updateCourse/:id', UserAuth, isAdmin, upload.single('thumbnail'), convertJfifToJpeg, updateCourse);
+indexRoutes.delete('/deleteCourse/:id', UserAuth, isAdmin, deleteCourse);
+indexRoutes.get('/getPopularDesignCourses', UserAuth, getPopularDesignCourses);
+
+
+//courseSection Routes
+indexRoutes.post("/createSection", UserAuth, isAdmin, upload.fields([{ name: 'video', maxCount: 1 }]), convertJfifToJpeg, createSection)
+indexRoutes.get("/getSectionById/:id", UserAuth, getSectionById)
+indexRoutes.get("/getSectionsByCourseId/:courseId", UserAuth, getSectionsByCourseId)
+indexRoutes.put("/updateSection/:id", UserAuth, isAdmin, upload.fields([{ name: 'video', maxCount: 1 }]), convertJfifToJpeg, updateSection)
+indexRoutes.delete("/deleteSection/:id", UserAuth, isAdmin, deleteSection)
 
 
 //mentor Routes
@@ -125,12 +99,29 @@ indexRoutes.delete("/deleteMentor/:id", UserAuth, isAdmin, deleteMentor)
 indexRoutes.get("/getMentorsByCourse/:courseId", UserAuth, getMentorsByCourse)
 
 
-//language Routes
-indexRoutes.post("/addLanguage", UserAuth, isAdmin, addLanguage)
-indexRoutes.get("/getLanguageById/:id", UserAuth, getLanguageById)
-indexRoutes.get("/getAllLanguages", UserAuth, getAllLanguages)
-indexRoutes.put("/updateLanguage/:id", UserAuth, isAdmin, updateLanguage)
-indexRoutes.delete("/deleteLanguage/:id", UserAuth, isAdmin, deleteLanguage)
+//premium Routes
+indexRoutes.post("/createPremium", UserAuth, isAdmin, createPremium)
+indexRoutes.get("/getAllPremium", UserAuth, getAllPremium)
+indexRoutes.get("/getPremiumById/:id", UserAuth, isAdmin, getPremiumById)
+indexRoutes.put("/updatePremium/:id", UserAuth, isAdmin, updatePremium)
+indexRoutes.delete("/deletePremium/:id", UserAuth, isAdmin, deletePremium)
+
+
+//billingAddress Routes
+indexRoutes.post("/createbilling", UserAuth, isUser, createbilling)
+indexRoutes.get("/getBillingAddressById/:id", UserAuth, getBillingAddressById)
+indexRoutes.get("/getAllBillingAddress", UserAuth, isAdmin, getAllBillingAddress)
+indexRoutes.put("/updateBillingAddress/:id", UserAuth, isUser, updateBillingAddress)
+indexRoutes.delete("/deleteBillingAddress/:id", UserAuth, isUser, deleteBillingAddress)
+
+
+//payment Routes
+indexRoutes.post("/createPayment", UserAuth, isUser, createPayment)
+indexRoutes.get("/getAllPayments", UserAuth, isAdmin, getAllPayments)
+indexRoutes.get("/getPaymentById/:id", UserAuth, isUser, getPaymentById)
+indexRoutes.put("/updatePayment/:id", UserAuth, isUser, updatePayment)
+indexRoutes.delete("/deletePayment/:id", UserAuth, isUser, deletePayment)
+indexRoutes.get('/getMySubscription', UserAuth, isUser, getMySubscription);
 
 
 //Reminder Routes
@@ -173,6 +164,13 @@ indexRoutes.put("/updateCoursePayment/:id", UserAuth, isUser, updateCoursePaymen
 indexRoutes.delete("/deleteCoursePayment/:id", UserAuth, isUser, deleteCoursePayment);
 
 
+//deleteAccount Routes
+indexRoutes.post("/createReasonCancel", UserAuth, createReasonCancel)
+indexRoutes.get("/getReasonCancelById/:id", UserAuth, getReasonCancelById)
+indexRoutes.get("/getAllReasonCancel", UserAuth, isAdmin, getAllReasonCancel)
+indexRoutes.put("/updateReasonCancel/:id", UserAuth, updateReasonCancel)
+indexRoutes.delete("/deleteReasonCancel/:id", UserAuth, deleteReasonCancel)
+indexRoutes.delete("/deleteMyAccount", UserAuth, deleteMyAccount)
 
 
 export default indexRoutes

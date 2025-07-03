@@ -66,7 +66,6 @@ export const forgotPassword = async (req, res) => {
         // Save user and verify OTP was saved
         await user.save();
         const savedUser = await Register.findOne({ email: email });
-        console.log('Saved OTP:', savedUser.otp); // Debug log
 
         const transporter = nodemailer.createTransport({
             service: "gmail",
@@ -88,7 +87,6 @@ export const forgotPassword = async (req, res) => {
         return sendSuccessResponse(res, "OTP sent successfully to your email");
 
     } catch (error) {
-        console.error('Forgot Password Error:', error); // Debug log
         return ThrowError(res, 500, error.message);
     }
 };
@@ -97,7 +95,6 @@ export const forgotPassword = async (req, res) => {
 export const VerifyEmail = async (req, res) => {
     try {
         const { email, otp } = req.body;
-        console.log('Verifying OTP:', { email, otp }); // Debug log
 
         if (!email || !otp) {
             return sendBadRequestResponse(res, "Please provide email and OTP.");
@@ -107,13 +104,6 @@ export const VerifyEmail = async (req, res) => {
         if (!user) {
             return sendErrorResponse(res, 404, "User not found.");
         }
-
-        console.log('User OTP details:', {
-            storedOTP: user.otp,
-            providedOTP: otp,
-            expiry: user.otpExpiry,
-            currentTime: new Date()
-        }); // Debug log
 
         // Check if OTP exists and is not expired
         if (!user.otp || !user.otpExpiry) {
@@ -133,7 +123,6 @@ export const VerifyEmail = async (req, res) => {
         return sendSuccessResponse(res, "OTP verified successfully.");
 
     } catch (error) {
-        console.error('Verify Email Error:', error); // Debug log
         return ThrowError(res, 500, error.message);
     }
 };

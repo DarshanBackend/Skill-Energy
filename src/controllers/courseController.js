@@ -2,6 +2,8 @@ import mongoose from "mongoose";
 import Course from "../models/courseModel.js";
 import { ThrowError } from "../utils/ErrorUtils.js"
 import { sendSuccessResponse, sendErrorResponse, sendBadRequestResponse, sendForbiddenResponse, sendCreatedResponse, sendUnauthorizedResponse } from '../utils/ResponseUtils.js';
+import fs from 'fs';
+import path from 'path';
 
 // Create new course with file uploads
 export const createCourse = async (req, res) => {
@@ -11,7 +13,6 @@ export const createCourse = async (req, res) => {
             courseCategoryId,
             video_title,
             short_description,
-            student,
             course_languageId,
             language,
             cc,
@@ -22,38 +23,66 @@ export const createCourse = async (req, res) => {
 
         // Validate required text fieldsz
         if (!video_title || !short_description || !price || !courseCategoryId) {
+            // Clean up uploaded thumbnail if validation fails
+            if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
+                const thumbPath = path.resolve(req.files.thumbnail[0].path);
+                if (fs.existsSync(thumbPath)) {
+                    fs.unlinkSync(thumbPath);
+                }
+            }
             return ThrowError(res, 400, "Missing required fields: courseCategoryId, video_title, short_description, and price are required");
         }
         if (!mongoose.Types.ObjectId.isValid(courseCategoryId)) {
+            // Clean up uploaded thumbnail if validation fails
+            if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
+                const thumbPath = path.resolve(req.files.thumbnail[0].path);
+                if (fs.existsSync(thumbPath)) {
+                    fs.unlinkSync(thumbPath);
+                }
+            }
             return ThrowError(res, 400, "Invalid courseCategoryId");
         }
         if (!mongoose.Types.ObjectId.isValid(course_languageId)) {
+            // Clean up uploaded thumbnail if validation fails
+            if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
+                const thumbPath = path.resolve(req.files.thumbnail[0].path);
+                if (fs.existsSync(thumbPath)) {
+                    fs.unlinkSync(thumbPath);
+                }
+            }
             return ThrowError(res, 400, "Invalid course_languageId");
         }
 
         // Check if courseCategoryId exists
         const courseCategoryExists = await mongoose.model('CourseCategory').findById(courseCategoryId);
         if (!courseCategoryExists) {
+            // Clean up uploaded thumbnail if validation fails
+            if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
+                const thumbPath = path.resolve(req.files.thumbnail[0].path);
+                if (fs.existsSync(thumbPath)) {
+                    fs.unlinkSync(thumbPath);
+                }
+            }
             return ThrowError(res, 404, "Course category not found");
         }
 
         // Check if course_languageId exists
         const languageExists = await mongoose.model('Language').findById(course_languageId);
         if (!languageExists) {
+            // Clean up uploaded thumbnail if validation fails
+            if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
+                const thumbPath = path.resolve(req.files.thumbnail[0].path);
+                if (fs.existsSync(thumbPath)) {
+                    fs.unlinkSync(thumbPath);
+                }
+            }
             return ThrowError(res, 404, "course_language not found");
         }
 
-        // Validate files (optional: thumbnail and video)
+        // Validate files (optional: thumbnail only)
         let thumbnailUrl = "";
-        // let videoUrl = "";
-
-        if (req.files) {
-            if (req.files.thumbnail && req.files.thumbnail[0]) {
-                thumbnailUrl = req.files.thumbnail[0].path || req.files.thumbnail[0].location || "";
-            }
-            // if (req.files.video && req.files.video[0]) {
-            //     videoUrl = req.files.video[0].path || req.files.video[0].location || "";
-            // }
+        if (req.file) {
+            thumbnailUrl = req.file.path || req.file.location || "";
         }
 
         // Parse what_are_learn if it's a string (from form-data)
@@ -73,17 +102,22 @@ export const createCourse = async (req, res) => {
         // Prevent duplicate course by video_title
         const existingCourse = await Course.findOne({ video_title });
         if (existingCourse) {
+            // Clean up uploaded thumbnail if duplicate course
+            if (req.file) {
+                const thumbPath = path.resolve(req.file.path);
+                if (fs.existsSync(thumbPath)) {
+                    fs.unlinkSync(thumbPath);
+                }
+            }
             return ThrowError(res, 400, "A course with this name (video_title) already exists.");
         }
 
         // Create the course
         const newCourse = new Course({
             courseCategory: courseCategoryId,
-            // video: videoUrl,
-            thumnail: thumbnailUrl,
+            thumbnail: thumbnailUrl,
             video_title,
             short_description,
-            student: student || '',
             course_languageId: course_languageId || '',
             language: language || '',
             cc: cc || '',
@@ -103,16 +137,11 @@ export const createCourse = async (req, res) => {
             data: {
                 course: savedCourse,
                 fileInfo: {
-                    thumbnail: req.files?.thumbnail?.[0] ? {
+                    thumbnail: req.file ? {
                         url: thumbnailUrl,
-                        type: req.files.thumbnail[0].mimetype,
-                        size: req.files.thumbnail[0].size
-                    } : null,
-                    // video: req.files?.video?.[0] ? {
-                    //     url: videoUrl,
-                    //     type: req.files.video[0].mimetype,
-                    //     size: req.files.video[0].size
-                    // } : null
+                        type: req.file.mimetype,
+                        size: req.file.size
+                    } : null
                 }
             }
         });
@@ -173,33 +202,45 @@ export const updateCourse = async (req, res) => {
             return ThrowError(res, 400, "Invalid course ID");
         }
 
-        const { courseCategoryId,  /* video,*/ thumnail, video_title, short_description, student, rating, course_languageId, language, cc, price, what_are_learn, long_description } = req.body;
+        const { courseCategoryId, video_title, short_description, rating, course_languageId, language, cc, price, what_are_learn, long_description } = req.body;
 
         const course = await Course.findById(req.params.id);
         if (!course) {
             return ThrowError(res, 404, "Course not found");
         }
 
-        // Check if courseCategoryId exists
-        const courseCategoryExists = await mongoose.model('CourseCategory').findById(courseCategoryId);
-        if (!courseCategoryExists) {
-            return ThrowError(res, 404, "Course category not found");
+        // Only check if courseCategoryId is provided
+        if (courseCategoryId) {
+            const courseCategoryExists = await mongoose.model('CourseCategory').findById(courseCategoryId);
+            if (!courseCategoryExists) {
+                return ThrowError(res, 404, "Course category not found");
+            }
+            course.courseCategory = courseCategoryId;
         }
 
         // Check if course_languageId exists
-        const languageExists = await mongoose.model('Language').findById(course_languageId);
-        if (!languageExists) {
-            return ThrowError(res, 404, "course_language not found");
+        if (course_languageId) {
+            const languageExists = await mongoose.model('Language').findById(course_languageId);
+            if (!languageExists) {
+                return ThrowError(res, 404, "course_language not found");
+            }
+            course.course_languageId = course_languageId;
         }
 
-        course.courseCategory = courseCategoryId ?? course.courseCategory;
-        // course.video = video ?? course.video;
-        course.thumnail = thumnail ?? course.thumnail;
+        // If a new file is uploaded, delete the old file and update the path
+        if (req.file) {
+            if (course.thumbnail) {
+                const oldThumbPath = path.resolve(course.thumbnail);
+                if (fs.existsSync(oldThumbPath)) {
+                    fs.unlinkSync(oldThumbPath);
+                }
+            }
+            course.thumbnail = req.file.path;
+        }
+
         course.video_title = video_title ?? course.video_title;
         course.short_description = short_description ?? course.short_description;
-        course.student = student ?? course.student;
         course.rating = rating ?? course.rating;
-        course.course_languageId = course_languageId ?? course.course_languageId;
         course.language = language ?? course.language;
         course.cc = cc ?? course.cc;
         course.price = price ?? course.price;
@@ -225,6 +266,14 @@ export const deleteCourse = async (req, res) => {
         const existingCourse = await Course.findById(id);
         if (!existingCourse) {
             return sendErrorResponse(res, 404, "Course not found");
+        }
+
+        // Delete thumbnail image if exists
+        if (existingCourse.thumbnail) {
+            const thumbPath = path.resolve(existingCourse.thumbnail);
+            if (fs.existsSync(thumbPath)) {
+                fs.unlinkSync(thumbPath);
+            }
         }
 
         await Course.findByIdAndDelete(id);

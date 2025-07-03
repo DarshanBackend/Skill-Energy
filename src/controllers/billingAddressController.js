@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import billingAddressModel from "../models/billingAddressModel.js";
 import { ThrowError } from "../utils/ErrorUtils.js";
-import { sendBadRequestResponse, sendSuccessResponse, sendErrorResponse } from "../utils/ResponseUtils.js";
+import { sendBadRequestResponse, sendSuccessResponse, sendErrorResponse, sendForbiddenResponse } from "../utils/ResponseUtils.js";
 
 // create billingAddress (User Only)
 export const createbilling = async (req, res) => {
@@ -42,7 +42,7 @@ export const createbilling = async (req, res) => {
 // getbillingAddressById (User Only)
 export const getBillingAddressById = async (req, res) => {
     try {
-        const { id } = req.params
+        const { id } = req.params;
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return sendBadRequestResponse(res, "Invalid billingAddress ID");
@@ -52,6 +52,14 @@ export const getBillingAddressById = async (req, res) => {
 
         if (!billingAddress) {
             return sendErrorResponse(res, 404, "billingAddress not found");
+        }
+
+        // Only allow if user is admin or owner of the billing address
+        const isAdmin = req.user && req.user.isAdmin;
+        const isOwner = req.user && billingAddress.user && billingAddress.user.toString() === req.user._id.toString();
+
+        if (!isAdmin && !isOwner) {
+            return sendForbiddenResponse(res, "Access denied. You are not allowed to view this billing address.");
         }
 
         return sendSuccessResponse(res, "billingAddress retrieved successfully", billingAddress);
@@ -101,7 +109,6 @@ export const updateBillingAddress = async (req, res) => {
         return ThrowError(res, 500, error.message);
     }
 };
-
 
 // Delete billingAddress (User Only)
 export const deleteBillingAddress = async (req, res) => {

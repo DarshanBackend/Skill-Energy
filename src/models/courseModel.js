@@ -5,11 +5,7 @@ const courseSchema = mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: "CourseCategory"
     },
-    video: {
-        type: String,
-        default: null
-    },
-    thumnail: {
+    thumbnail: {
         type: String
     },
     video_title: {

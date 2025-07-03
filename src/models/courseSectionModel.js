@@ -26,4 +26,4 @@ courseSectionSchema.virtual('formattedDuration').get(function () {
     }
 });
 
-export default mongoose.model("courseSectionSchema", courseSectionSchema);
+export default mongoose.model("courseSection", courseSectionSchema);

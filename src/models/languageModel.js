@@ -5,6 +5,10 @@ const languageSchema = mongoose.Schema({
         type: String,
         required: true,
         unique: true 
+    },
+    language_thumbnail: {
+        type: String,
+        default: ''
     }
 }, { timestamps: true });
 

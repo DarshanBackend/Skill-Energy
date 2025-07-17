@@ -195,6 +195,27 @@ export const getAllCourses = async (req, res) => {
     }
 };
 
+// Get courses by category ID
+export const getCourseByCategory = async (req, res) => {
+    try {
+        const { categoryId } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(categoryId)) {
+            return sendBadRequestResponse(res, "Invalid category ID");
+        }
+
+        const courses = await Course.find({ courseCategory: categoryId }).populate('courseCategory');
+
+        if (!courses || courses.length === 0) {
+            return sendSuccessResponse(res, "No courses found for this category", []);
+        }
+
+        return sendSuccessResponse(res, "Courses fetched successfully", courses);
+    } catch (error) {
+        return ThrowError(res, 500, error.message);
+    }
+};
+
 // Update course
 export const updateCourse = async (req, res) => {
     try {

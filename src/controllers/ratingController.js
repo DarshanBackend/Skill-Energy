@@ -99,7 +99,7 @@ export const getCourseRatings = async (req, res) => {
             averageRating,
             ratingCounts: counts,
             ratings: ratings.map(r => ({
-                userName: r.userId.name,
+                userName: r.userId ? r.userId.name : null,
                 rate: r.rate,
                 description: r.description,
                 createdAt: r.createdAt

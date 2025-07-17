@@ -3,7 +3,7 @@ import { upload, convertJfifToJpeg } from "../middlewares/imageupload.js";
 import { isAdmin, isUser, UserAuth } from "../middlewares/auth.js";
 import { createRegister, getRegisterById, getAllUsers, updateProfileUser, updateProfileAdmin } from "../controllers/registerController.js";
 import { changePassword, forgotPassword, loginUser, resetPassword, VerifyEmail } from '../controllers/loginController.js';
-import { createCourse, getCourseById, getAllCourses, updateCourse, deleteCourse } from '../controllers/courseController.js';
+import { createCourse, getCourseById, getAllCourses, updateCourse, deleteCourse, getCourseByCategory } from '../controllers/courseController.js';
 import { createCourseCategory, deleteCourseCategory, getAllCourseCategories, getCourseCategoryById, updateCourseCategory } from "../controllers/courseCategoryController.js";
 import { createPremium, deletePremium, getAllPremium, getPremiumById, updatePremium } from "../controllers/premiumController.js";
 import { createPayment, deletePayment, getAllPayments, getPaymentById, updatePayment, getMySubscription } from "../controllers/paymentController.js";
@@ -77,9 +77,11 @@ indexRoutes.delete("/deleteCompany/:id", UserAuth, isAdmin, deleteCompany)
 indexRoutes.post('/createCourse', UserAuth, isAdmin, upload.single('thumbnail'), convertJfifToJpeg, createCourse);
 indexRoutes.get('/getAllCourses', UserAuth, getAllCourses);
 indexRoutes.get('/getCourseById/:id', UserAuth, getCourseById);
+indexRoutes.get('/getCourseByCategory/:categoryId', UserAuth, getCourseByCategory);
 indexRoutes.put('/updateCourse/:id', UserAuth, isAdmin, upload.single('thumbnail'), convertJfifToJpeg, updateCourse);
 indexRoutes.delete('/deleteCourse/:id', UserAuth, isAdmin, deleteCourse);
 indexRoutes.get('/getPopularDesignCourses', UserAuth, getPopularDesignCourses);
+
 
 
 //courseSection Routes

@@ -94,7 +94,7 @@ indexRoutes.delete("/deleteSection/:id", UserAuth, isAdmin, deleteSection)
 
 //mentor Routes
 indexRoutes.post("/addMentor", UserAuth, isAdmin, upload.single("mentorImage"), convertJfifToJpeg, addMentor)
-indexRoutes.get("/getMentorById/:id", UserAuth, isAdmin, getMentorById)
+indexRoutes.get("/getMentorById/:id", UserAuth, getMentorById)
 indexRoutes.get("/getAllMentors", UserAuth, getAllMentors)
 indexRoutes.put("/updateMentor/:id", UserAuth, isAdmin, upload.single("mentorImage"), convertJfifToJpeg, updateMentor)
 indexRoutes.delete("/deleteMentor/:id", UserAuth, isAdmin, deleteMentor)
@@ -104,7 +104,7 @@ indexRoutes.get("/getMentorsByCourse/:courseId", UserAuth, getMentorsByCourse)
 //premium Routes
 indexRoutes.post("/createPremium", UserAuth, isAdmin, createPremium)
 indexRoutes.get("/getAllPremium", UserAuth, getAllPremium)
-indexRoutes.get("/getPremiumById/:id", UserAuth, isAdmin, getPremiumById)
+indexRoutes.get("/getPremiumById/:id", UserAuth, getPremiumById)
 indexRoutes.put("/updatePremium/:id", UserAuth, isAdmin, updatePremium)
 indexRoutes.delete("/deletePremium/:id", UserAuth, isAdmin, deletePremium)
 

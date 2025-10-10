@@ -7,7 +7,7 @@ import { createCourse, getCourseById, getAllCourses, updateCourse, deleteCourse,
 import { createCourseCategory, deleteCourseCategory, getAllCourseCategories, getCourseCategoryById, updateCourseCategory } from "../controllers/courseCategoryController.js";
 import { createPremium, deletePremium, getAllPremium, getPremiumById, updatePremium } from "../controllers/premiumController.js";
 import { createPayment, deletePayment, getAllPayments, getPaymentById, updatePayment, getMySubscription } from "../controllers/paymentController.js";
-import { createbilling, deleteBillingAddress, getAllBillingAddress, getBillingAddressById, updateBillingAddress } from "../controllers/billingAddressController.js";
+import { createbilling, deleteBillingAddress, getAllBillingAddress, getBillingAddress, getBillingAddressById, updateBillingAddress } from "../controllers/billingAddressController.js";
 import { createReasonCancel, deleteMyAccount, deleteReasonCancel, getAllReasonCancel, getReasonCancelById, updateReasonCancel } from "../controllers/reasonDeleteAccountController.js";
 import { createSection, deleteSection, getSectionById, getSectionsByCourseId, updateSection } from "../controllers/courseSectionController.js";
 import { addCompany, deleteCompany, getAllCompanies, getCompanyById, updateCompany } from "../controllers/companyController.js";
@@ -112,6 +112,7 @@ indexRoutes.delete("/deletePremium/:id", UserAuth, isAdmin, deletePremium)
 //billingAddress Routes
 indexRoutes.post("/createbilling", UserAuth, isUser, createbilling)
 indexRoutes.get("/getBillingAddressById/:id", UserAuth, getBillingAddressById)
+indexRoutes.get("/getBillingAddress", UserAuth, getBillingAddress)
 indexRoutes.get("/getAllBillingAddress", UserAuth, isAdmin, getAllBillingAddress)
 indexRoutes.put("/updateBillingAddress/:id", UserAuth, isUser, updateBillingAddress)
 indexRoutes.delete("/deleteBillingAddress/:id", UserAuth, isUser, deleteBillingAddress)

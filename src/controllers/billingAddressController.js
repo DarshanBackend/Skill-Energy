@@ -130,7 +130,30 @@ export const deleteBillingAddress = async (req, res) => {
     }
 };
 
+export const getBillingAddress = async (req, res) => {
+    try {
+        const userId = req.user._id;
 
+        const billingAddress = await billingAddressModel
+            .findOne({ user: userId })
+            .populate("user", "name email"); // optional populate
 
+        if (!billingAddress) {
+            return res.status(404).json({
+                success: false,
+                message: "No billing address found for this user",
+            });
+        }
 
-
+        res.status(200).json({
+            success: true,
+            message: "Billing address fetched successfully",
+            data: billingAddress,
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};

@@ -132,7 +132,7 @@ export const updateCoursePayment = async (req, res) => {
                 return ThrowError(res, 404, 'Course not found.');
             }
         }
-     
+
         const updatedPayment = await CoursePayment.findByIdAndUpdate(
             id,
             { ...req.body },
@@ -171,4 +171,51 @@ export const deleteCoursePayment = async (req, res) => {
     } catch (error) {
         return ThrowError(res, 500, error.message);
     }
-}; 
+};
+
+export const getUserPurchasedCourses = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const payments = await CoursePayment.find({ user: userId }).select('courseId');
+        const courseIds = payments.map(payment => payment.courseId);
+
+        if (courseIds.length === 0) {
+            return res.status(200).json({
+                success: true,
+                message: "No courses purchased yet",
+                courses: []
+            });
+        }
+
+        const courses = await Course.find({
+            _id: { $in: courseIds }
+        })
+            .populate('courseCategory', 'name')
+            .populate('course_languageId', 'name')
+            .select('video_title short_description thumbnail price courseCategory course_languageId language what_are_learn long_description ratings user createdAt');
+
+        const coursesWithPurchaseInfo = courses.map(course => {
+            const payment = payments.find(p => p.courseId.toString() === course._id.toString());
+            return {
+                ...course.toObject(),
+                purchasedAt: payment.createdAt,
+                transactionId: payment.transactionId,
+                averageRating: course.ratings.length > 0
+                    ? course.ratings.reduce((sum, rating) => sum + rating.rating, 0) / course.ratings.length
+                    : 0,
+                totalRatings: course.ratings.length
+            };
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Purchased courses retrieved successfully",
+            count: coursesWithPurchaseInfo.length,
+            courses: coursesWithPurchaseInfo
+        });
+
+    } catch (error) {
+        return ThrowError(res, 500, error.message);
+    }
+};

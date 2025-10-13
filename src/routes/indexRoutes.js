@@ -17,7 +17,7 @@ import { addreminder, getAllReminders, getReminderById, updateReminder, deleteRe
 import { addRating, getRatingById, getAllRatings, updateRating, deleteRating, getCourseRatings, totalRatings } from "../controllers/ratingController.js";
 import { addToWishlist, clearWishlist, getUserWishlist, removeFromWishlist } from "../controllers/wishlistController.js";
 import { addToCart, clearCart, getCart, removeFromCart } from "../controllers/cartController.js";
-import { createCoursePayment, getAllCoursePayments, getCoursePaymentById, updateCoursePayment, deleteCoursePayment } from "../controllers/coursePaymentController.js";
+import { createCoursePayment, getAllCoursePayments, getCoursePaymentById, updateCoursePayment, deleteCoursePayment, getUserPurchasedCourses } from "../controllers/coursePaymentController.js";
 import { getDashboardStats, getLatestCourses, getPopularBusinessCourses, getPopularDesignCourses, getPopularDevelopmentCourses, getLernersareviewing, getTopMentors } from "../controllers/dashboardController.js";
 
 const indexRoutes = express.Router()
@@ -165,6 +165,7 @@ indexRoutes.get("/getAllCoursePayments", UserAuth, isAdmin, getAllCoursePayments
 indexRoutes.get("/getCoursePaymentById/:id", UserAuth, isUser, getCoursePaymentById);
 indexRoutes.put("/updateCoursePayment/:id", UserAuth, isUser, updateCoursePayment);
 indexRoutes.delete("/deleteCoursePayment/:id", UserAuth, isUser, deleteCoursePayment);
+indexRoutes.get("/getUserPurchasedCourses", UserAuth, isUser, getUserPurchasedCourses);
 
 
 //deleteAccount Routes

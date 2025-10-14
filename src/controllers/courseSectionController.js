@@ -4,7 +4,7 @@ import { ThrowError } from "../utils/ErrorUtils.js";
 import Course from "../models/courseModel.js";
 import path from "path";
 import fs from "fs";
-import { sendErrorResponse ,sendSuccessResponse} from "../utils/ResponseUtils.js"
+import { sendErrorResponse, sendSuccessResponse } from "../utils/ResponseUtils.js"
 
 
 // Create a new section
@@ -124,25 +124,50 @@ export const createSection = async (req, res) => {
 export const getSectionsByCourseId = async (req, res) => {
     try {
         const { courseId } = req.params;
+
         if (!mongoose.Types.ObjectId.isValid(courseId)) {
             return ThrowError(res, 400, "Invalid course ID");
         }
+
         const sections = await CourseSection.find({ courseId }).sort({ sectionNo: 1, videoNo: 1 });
+
         if (!sections.length) {
             return sendSuccessResponse(res, "No sections found for this course", []);
         }
-        // Group by sectionNo
+
         const grouped = sections.reduce((acc, section) => {
             const secNo = section.sectionNo;
-            if (!acc[secNo]) acc[secNo] = [];
-            acc[secNo].push(section);
+            if (!acc[secNo]) {
+                acc[secNo] = {
+                    sectionNo: section.sectionNo,
+                    section_title: section.section_title,
+                    total_time: 0,
+                    videos: []
+                };
+            }
+
+            acc[secNo].videos.push({
+                _id: section._id,
+                videoNo: section.videoNo,
+                video_title: section.video_title,
+                video_time: section.video_time,
+                video: section.video
+            });
+
+            acc[secNo].total_time += section.video_time || 0;
+
             return acc;
         }, {});
-        return sendSuccessResponse(res, "Sections fetched successfully", grouped);
+
+        const formattedSections = Object.values(grouped).sort((a, b) => a.sectionNo - b.sectionNo);
+
+        return sendSuccessResponse(res, "Sections fetched successfully", formattedSections);
+
     } catch (error) {
         return ThrowError(res, 500, error.message);
     }
 };
+
 // Get section by ID
 export const getSectionById = async (req, res) => {
     try {

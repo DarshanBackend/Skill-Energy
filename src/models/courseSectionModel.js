@@ -6,6 +6,7 @@ const courseSectionSchema = new mongoose.Schema({
     section_title: { type: String, required: true },
     total_time: { type: Number, default: 0 },
     video: { type: String },
+    video_key: { type: String, default: null },
     videoNo: { type: Number, required: true },
     video_title: { type: String, required: true },
     video_time: { type: Number, required: true }

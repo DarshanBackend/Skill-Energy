@@ -3,56 +3,103 @@ import { ThrowError } from "../utils/ErrorUtils.js";
 import Mentor from "../models/mentorModel.js";
 import Course from "../models/courseModel.js";
 import { sendSuccessResponse, sendErrorResponse, sendBadRequestResponse, sendCreatedResponse } from '../utils/ResponseUtils.js';
-import fs from 'fs';
-import path from "path";
+import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 
-// Add new mentor (Admin only)
+// 🛠 S3 Client Configuration
+const s3 = new S3Client({
+    region: process.env.S3_REGION || 'us-east-1',
+    credentials: {
+        accessKeyId: process.env.S3_ACCESS_KEY.trim(),
+        secretAccessKey: process.env.S3_SECRET_KEY.trim(),
+    },
+});
+
+// 🌐 Build public URL for S3 objects
+const publicUrlForKey = (key) => {
+    const cdn = process.env.CDN_BASE_URL?.replace(/\/$/, '');
+    if (cdn) return `${cdn}/${key}`;
+    const bucket = process.env.S3_BUCKET_NAME;
+    const region = process.env.S3_REGION || 'us-east-1';
+    return `https://${bucket}.s3.${region}.amazonaws.com/${encodeURI(key)}`;
+};
+
+// 🗑 Cleanup uploaded S3 object in case of errors
+const cleanupUploadedIfAny = async (file) => {
+    if (file?.key) {
+        try {
+            await s3.send(
+                new DeleteObjectCommand({
+                    Bucket: process.env.S3_BUCKET_NAME,
+                    Key: file.key,
+                })
+            );
+        } catch (e) {
+            console.error('S3 cleanup failed:', e.message);
+        }
+    }
+};
+
+// ➕ Add new mentor (Admin only) - UPDATED FOR S3
 export const addMentor = async (req, res) => {
+    // Support different upload scenarios
+    const pickUploaded = () => {
+        if (req.file) return req.file;
+        if (req.files?.mentorImage?.[0]) return req.files.mentorImage[0];
+        if (req.files?.image?.[0]) return req.files.image[0];
+        return null;
+    };
+
+    const uploaded = pickUploaded();
+
     try {
         const { mentorName, courseId, status } = req.body;
 
         if (!mentorName || !courseId) {
-            if (req.file) fs.unlinkSync(path.resolve(req.file.path));
+            await cleanupUploadedIfAny(uploaded);
             return sendBadRequestResponse(res, "Mentor name and Course ID are required");
         }
 
         if (!mongoose.Types.ObjectId.isValid(courseId)) {
-            if (req.file) fs.unlinkSync(path.resolve(req.file.path));
+            await cleanupUploadedIfAny(uploaded);
             return sendBadRequestResponse(res, "Invalid Course ID");
         }
 
         const course = await Course.findById(courseId);
         if (!course) {
-            if (req.file) fs.unlinkSync(path.resolve(req.file.path));
+            await cleanupUploadedIfAny(uploaded);
             return sendErrorResponse(res, 404, "Course not found");
         }
 
         const existingMentor = await Mentor.findOne({ mentorName, courseId });
         if (existingMentor) {
-            if (req.file) fs.unlinkSync(path.resolve(req.file.path));
+            await cleanupUploadedIfAny(uploaded);
             return sendBadRequestResponse(res, "This mentor is already assigned to this course");
         }
 
+        // 🆕 Handle S3 image upload
         let mentorImage = null;
-        if (req.file) {
-            mentorImage = `/public/mentorImages/${path.basename(req.file.path)}`;
+        let mentorImage_key = null;
+        if (uploaded?.key) {
+            mentorImage = publicUrlForKey(uploaded.key);
+            mentorImage_key = uploaded.key;
         }
 
         const newMentor = await Mentor.create({
             mentorName,
             courseId,
             status: status || 'active',
-            mentorImage
+            mentorImage,
+            mentorImage_key // Store S3 key for future deletion
         });
 
         return sendCreatedResponse(res, "Mentor added successfully", newMentor);
     } catch (error) {
-        if (req.file) fs.unlinkSync(path.resolve(req.file.path));
+        await cleanupUploadedIfAny(uploaded);
         return ThrowError(res, 500, error.message);
     }
 };
 
-// Get all mentors
+// 📋 Get all mentors (UNCHANGED)
 export const getAllMentors = async (req, res) => {
     try {
         const mentors = await Mentor.find().populate('courseId', 'title').sort({ createdAt: -1 });
@@ -67,7 +114,7 @@ export const getAllMentors = async (req, res) => {
     }
 };
 
-// Get mentor by ID
+// 🔍 Get mentor by ID (UNCHANGED)
 export const getMentorById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -87,45 +134,65 @@ export const getMentorById = async (req, res) => {
     }
 };
 
-// Update mentor (Admin only)
+// ✏️ Update mentor (Admin only) - UPDATED FOR S3
 export const updateMentor = async (req, res) => {
+    const pickUploaded = () => {
+        if (req.file) return req.file;
+        if (req.files?.mentorImage?.[0]) return req.files.mentorImage[0];
+        if (req.files?.image?.[0]) return req.files.image[0];
+        return null;
+    };
+
+    const uploaded = pickUploaded();
+
     try {
         const { id } = req.params;
         const { mentorName, courseId, status } = req.body;
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
-            if (req.file) fs.unlinkSync(path.resolve(req.file.path));
+            await cleanupUploadedIfAny(uploaded);
             return sendBadRequestResponse(res, "Invalid mentor ID");
         }
 
         const existingMentor = await Mentor.findById(id);
         if (!existingMentor) {
-            if (req.file) fs.unlinkSync(path.resolve(req.file.path));
+            await cleanupUploadedIfAny(uploaded);
             return sendErrorResponse(res, 404, "Mentor not found");
         }
 
         if (courseId) {
             if (!mongoose.Types.ObjectId.isValid(courseId)) {
-                if (req.file) fs.unlinkSync(path.resolve(req.file.path));
+                await cleanupUploadedIfAny(uploaded);
                 return sendBadRequestResponse(res, "Invalid Course ID format");
             }
             const course = await Course.findById(courseId);
             if (!course) {
-                if (req.file) fs.unlinkSync(path.resolve(req.file.path));
+                await cleanupUploadedIfAny(uploaded);
                 return sendErrorResponse(res, 404, "Course not found");
             }
             existingMentor.courseId = courseId;
         }
 
-        if (req.file) {
-            const newImagePath = `/public/mentorImages/${path.basename(req.file.path)}`;
-            if (existingMentor.mentorImage) {
-                const oldImagePath = path.join(process.cwd(), existingMentor.mentorImage);
-                if (fs.existsSync(oldImagePath)) {
-                    fs.unlinkSync(oldImagePath);
+        // 🆕 Handle S3 image upload
+        if (uploaded?.key) {
+            // Delete old image from S3 if exists
+            if (existingMentor.mentorImage_key) {
+                try {
+                    await s3.send(
+                        new DeleteObjectCommand({
+                            Bucket: process.env.S3_BUCKET_NAME,
+                            Key: existingMentor.mentorImage_key,
+                        })
+                    );
+                } catch (error) {
+                    console.error('Error deleting old image from S3:', error.message);
+                    // Continue with update even if old image deletion fails
                 }
             }
-            existingMentor.mentorImage = newImagePath;
+
+            // Update with new image
+            existingMentor.mentorImage = publicUrlForKey(uploaded.key);
+            existingMentor.mentorImage_key = uploaded.key;
         }
 
         if (mentorName) existingMentor.mentorName = mentorName;
@@ -135,12 +202,12 @@ export const updateMentor = async (req, res) => {
 
         return sendSuccessResponse(res, "Mentor updated successfully", existingMentor);
     } catch (error) {
-        if (req.file) fs.unlinkSync(path.resolve(req.file.path));
+        await cleanupUploadedIfAny(uploaded);
         return ThrowError(res, 500, error.message);
     }
 };
 
-// Delete mentor (Admin only)
+// 🗑 Delete mentor (Admin only) - UPDATED FOR S3
 export const deleteMentor = async (req, res) => {
     try {
         const { id } = req.params;
@@ -149,17 +216,27 @@ export const deleteMentor = async (req, res) => {
             return sendBadRequestResponse(res, "Invalid mentor ID");
         }
 
-        const mentor = await Mentor.findByIdAndDelete(id);
+        const mentor = await Mentor.findById(id);
         if (!mentor) {
             return sendErrorResponse(res, 404, "Mentor not found");
         }
 
-        if (mentor.mentorImage) {
-            const imagePath = path.join(process.cwd(), mentor.mentorImage);
-            if (fs.existsSync(imagePath)) {
-                fs.unlinkSync(imagePath);
+        // 🆕 Delete mentor image from S3 if exists
+        if (mentor.mentorImage_key) {
+            try {
+                await s3.send(
+                    new DeleteObjectCommand({
+                        Bucket: process.env.S3_BUCKET_NAME,
+                        Key: mentor.mentorImage_key,
+                    })
+                );
+            } catch (error) {
+                console.error('Error deleting image from S3:', error.message);
+                // Continue with deletion even if image deletion fails
             }
         }
+
+        await Mentor.findByIdAndDelete(id);
 
         return sendSuccessResponse(res, "Mentor deleted successfully");
     } catch (error) {
@@ -167,7 +244,7 @@ export const deleteMentor = async (req, res) => {
     }
 };
 
-// Get mentors by course
+// 📂 Get mentors by course (UNCHANGED)
 export const getMentorsByCourse = async (req, res) => {
     try {
         const { courseId } = req.params;

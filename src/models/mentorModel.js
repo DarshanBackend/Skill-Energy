@@ -12,6 +12,10 @@ const mentorSchema = mongoose.Schema({
     mentorImage: {
         type: String
     },
+    mentorImage_key: {
+        type: String,
+        default: null
+    },
     status: {
         type: String,
         enum: ['active', 'inactive'],

@@ -1,5 +1,5 @@
 import express from "express";
-import { upload, convertJfifToJpeg } from "../middlewares/imageupload.js";
+import { uploadMedia, upload, convertJfifToJpeg } from "../middlewares/imageupload.js";
 import { isAdmin, isUser, UserAuth } from "../middlewares/auth.js";
 import { createRegister, getRegisterById, getAllUsers, updateProfileUser, updateProfileAdmin } from "../controllers/registerController.js";
 import { changePassword, forgotPassword, loginUser, resetPassword, VerifyEmail } from '../controllers/loginController.js';
@@ -36,8 +36,8 @@ indexRoutes.get('/getTopMentors', UserAuth, getTopMentors);
 indexRoutes.post("/createRegister", createRegister)
 indexRoutes.get("/getRegisterById/:id", UserAuth, getRegisterById)
 indexRoutes.get("/getAllUsers", UserAuth, getAllUsers)
-indexRoutes.put("/updateProfileUser/:id", UserAuth, isUser, upload.single("image"), convertJfifToJpeg, updateProfileUser)
-indexRoutes.put("/updateProfileAdmin/:id", UserAuth, isAdmin, upload.single("image"), convertJfifToJpeg, updateProfileAdmin)
+indexRoutes.put("/updateProfileUser/:id", UserAuth, isUser, upload.single("image"), updateProfileUser)
+indexRoutes.put("/updateProfileAdmin/:id", UserAuth, isAdmin, upload.single("image"), updateProfileAdmin)
 
 
 //login Routes
@@ -50,10 +50,10 @@ indexRoutes.post('/changePassword', UserAuth, changePassword);
 
 
 //language Routes
-indexRoutes.post("/addLanguage", UserAuth, isAdmin, upload.single('language_thumbnail'), convertJfifToJpeg, addLanguage)
+indexRoutes.post("/addLanguage", UserAuth, isAdmin, upload.single('language_thumbnail'), addLanguage)
 indexRoutes.get("/getLanguageById/:id", UserAuth, getLanguageById)
 indexRoutes.get("/getAllLanguages", UserAuth, getAllLanguages)
-indexRoutes.put("/updateLanguage/:id", UserAuth, isAdmin, upload.single('language_thumbnail'), convertJfifToJpeg, updateLanguage)
+indexRoutes.put("/updateLanguage/:id", UserAuth, isAdmin, upload.single('language_thumbnail'), updateLanguage)
 indexRoutes.delete("/deleteLanguage/:id", UserAuth, isAdmin, deleteLanguage)
 
 
@@ -66,37 +66,37 @@ indexRoutes.delete("/deleteCourseCategory/:id", UserAuth, isAdmin, deleteCourseC
 
 
 //company Routes
-indexRoutes.post("/addCompany", UserAuth, isAdmin, upload.single("companyImage"), convertJfifToJpeg, addCompany)
+indexRoutes.post("/addCompany", UserAuth, isAdmin, upload.single("companyImage"), addCompany)
 indexRoutes.get("/getCompanyById/:id", UserAuth, isAdmin, getCompanyById)
 indexRoutes.get("/getAllCompanies", UserAuth, getAllCompanies)
-indexRoutes.put("/updateCompany/:id", UserAuth, isAdmin, upload.single("companyImage"), convertJfifToJpeg, updateCompany)
+indexRoutes.put("/updateCompany/:id", UserAuth, isAdmin, upload.single("companyImage"), updateCompany)
 indexRoutes.delete("/deleteCompany/:id", UserAuth, isAdmin, deleteCompany)
 
 
 //course Routes
-indexRoutes.post('/createCourse', UserAuth, isAdmin, upload.single('thumbnail'), convertJfifToJpeg, createCourse);
+indexRoutes.post('/createCourse', UserAuth, isAdmin, upload.single('thumbnail'), createCourse);
 indexRoutes.get('/getAllCourses', UserAuth, getAllCourses);
 indexRoutes.get('/getCourseById/:id', UserAuth, getCourseById);
 indexRoutes.get('/getCourseByCategory/:categoryId', UserAuth, getCourseByCategory);
-indexRoutes.put('/updateCourse/:id', UserAuth, isAdmin, upload.single('thumbnail'), convertJfifToJpeg, updateCourse);
+indexRoutes.put('/updateCourse/:id', UserAuth, isAdmin, upload.single('thumbnail'), updateCourse);
 indexRoutes.delete('/deleteCourse/:id', UserAuth, isAdmin, deleteCourse);
 indexRoutes.get('/getPopularDesignCourses', UserAuth, getPopularDesignCourses);
 
 
 
 //courseSection Routes
-indexRoutes.post("/createSection", UserAuth, isAdmin, upload.fields([{ name: 'video', maxCount: 1 }]), convertJfifToJpeg, createSection)
+indexRoutes.post("/createSection", UserAuth, isAdmin, upload.fields([{ name: 'video', maxCount: 1 }]), createSection)
 indexRoutes.get("/getSectionById/:id", UserAuth, getSectionById)
 indexRoutes.get("/getSectionsByCourseId/:courseId", UserAuth, getSectionsByCourseId)
-indexRoutes.put("/updateSection/:id", UserAuth, isAdmin, upload.fields([{ name: 'video', maxCount: 1 }]), convertJfifToJpeg, updateSection)
+indexRoutes.put("/updateSection/:id", UserAuth, isAdmin, upload.fields([{ name: 'video', maxCount: 1 }]), updateSection)
 indexRoutes.delete("/deleteSection/:id", UserAuth, isAdmin, deleteSection)
 
 
 //mentor Routes
-indexRoutes.post("/addMentor", UserAuth, isAdmin, upload.single("mentorImage"), convertJfifToJpeg, addMentor)
+indexRoutes.post("/addMentor", UserAuth, isAdmin, upload.single("mentorImage"), addMentor)
 indexRoutes.get("/getMentorById/:id", UserAuth, getMentorById)
 indexRoutes.get("/getAllMentors", UserAuth, getAllMentors)
-indexRoutes.put("/updateMentor/:id", UserAuth, isAdmin, upload.single("mentorImage"), convertJfifToJpeg, updateMentor)
+indexRoutes.put("/updateMentor/:id", UserAuth, isAdmin, upload.single("mentorImage"), updateMentor)
 indexRoutes.delete("/deleteMentor/:id", UserAuth, isAdmin, deleteMentor)
 indexRoutes.get("/getMentorsByCourse/:courseId", UserAuth, getMentorsByCourse)
 

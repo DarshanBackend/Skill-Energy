@@ -2,66 +2,92 @@ import mongoose from "mongoose";
 import { ThrowError } from "../utils/ErrorUtils.js";
 import Company from "../models/companyModel.js";
 import { sendSuccessResponse, sendErrorResponse, sendBadRequestResponse, sendForbiddenResponse, sendCreatedResponse, sendUnauthorizedResponse } from '../utils/ResponseUtils.js';
-import fs from 'fs';
-import path from "path";
+import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 
+// 🛠 S3 Client Configuration
+const s3 = new S3Client({
+    region: process.env.S3_REGION || 'us-east-1',
+    credentials: {
+        accessKeyId: process.env.S3_ACCESS_KEY.trim(),
+        secretAccessKey: process.env.S3_SECRET_KEY.trim(),
+    },
+});
 
+// 🌐 Build public URL for S3 objects
+const publicUrlForKey = (key) => {
+    const cdn = process.env.CDN_BASE_URL?.replace(/\/$/, '');
+    if (cdn) return `${cdn}/${key}`;
+    const bucket = process.env.S3_BUCKET_NAME;
+    const region = process.env.S3_REGION || 'us-east-1';
+    return `https://${bucket}.s3.${region}.amazonaws.com/${encodeURI(key)}`;
+};
 
-// add new company (Admin only)
+// 🗑 Cleanup uploaded S3 object in case of errors
+const cleanupUploadedIfAny = async (file) => {
+    if (file?.key) {
+        try {
+            await s3.send(
+                new DeleteObjectCommand({
+                    Bucket: process.env.S3_BUCKET_NAME,
+                    Key: file.key,
+                })
+            );
+        } catch (e) {
+            console.error('S3 cleanup failed:', e.message);
+        }
+    }
+};
+
+// ➕ Add new company (Admin only) - UPDATED FOR S3
 export const addCompany = async (req, res) => {
+    // Support different upload scenarios
+    const pickUploaded = () => {
+        if (req.file) return req.file;
+        if (req.files?.companyImage?.[0]) return req.files.companyImage[0];
+        if (req.files?.image?.[0]) return req.files.image[0];
+        return null;
+    };
+
+    const uploaded = pickUploaded();
+
     try {
         const { companyName, status } = req.body;
 
         if (!companyName) {
-            // Clean up uploaded file if validation fails
-            if (req.file) {
-                const filePath = path.resolve(req.file.path);
-                if (fs.existsSync(filePath)) {
-                    fs.unlinkSync(filePath);
-                }
-            }
+            await cleanupUploadedIfAny(uploaded);
             return sendBadRequestResponse(res, "Company name is required");
         }
 
         // Check if company already exists
         const existingCompany = await Company.findOne({ companyName });
         if (existingCompany) {
-            // Clean up uploaded file if company already exists
-            if (req.file) {
-                const filePath = path.resolve(req.file.path);
-                if (fs.existsSync(filePath)) {
-                    fs.unlinkSync(filePath);
-                }
-            }
+            await cleanupUploadedIfAny(uploaded);
             return sendBadRequestResponse(res, "Company with this name already exists");
         }
 
-        // Handle image upload
+        // 🆕 Handle S3 image upload
         let companyImage = null;
-        if (req.file) {
-            companyImage = `/public/companyImage/${path.basename(req.file.path)}`;
+        let companyImage_key = null;
+        if (uploaded?.key) {
+            companyImage = publicUrlForKey(uploaded.key);
+            companyImage_key = uploaded.key;
         }
 
         const newCompany = await Company.create({
             companyName,
             status: status || 'active',
-            companyImage
+            companyImage,
+            companyImage_key // Store S3 key for future deletion
         });
 
-        return sendCreatedResponse(res, "Company add successfully", newCompany);
+        return sendCreatedResponse(res, "Company added successfully", newCompany);
     } catch (error) {
-        // Clean up uploaded file if any error occurs
-        if (req.file) {
-            const filePath = path.resolve(req.file.path);
-            if (fs.existsSync(filePath)) {
-                fs.unlinkSync(filePath);
-            }
-        }
+        await cleanupUploadedIfAny(uploaded);
         return ThrowError(res, 500, error.message);
     }
 };
 
-// Get all companies
+// 📋 Get all companies (UNCHANGED)
 export const getAllCompanies = async (req, res) => {
     try {
         const companies = await Company.find().sort({ createdAt: -1 });
@@ -76,13 +102,13 @@ export const getAllCompanies = async (req, res) => {
     }
 };
 
-// Get company by ID
+// 🔍 Get company by ID (UNCHANGED)
 export const getCompanyById = async (req, res) => {
     try {
         const { id } = req.params;
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
-            return sendBadRequestResponse(res, "Invalid course ID");
+            return sendBadRequestResponse(res, "Invalid company ID");
         }
 
         const company = await Company.findById(id);
@@ -96,24 +122,29 @@ export const getCompanyById = async (req, res) => {
     }
 };
 
-// Update company (Admin only)
+// ✏️ Update company (Admin only) - UPDATED FOR S3
 export const updateCompany = async (req, res) => {
+    const pickUploaded = () => {
+        if (req.file) return req.file;
+        if (req.files?.companyImage?.[0]) return req.files.companyImage[0];
+        if (req.files?.image?.[0]) return req.files.image[0];
+        return null;
+    };
+
+    const uploaded = pickUploaded();
+
     try {
         const { id } = req.params;
         const { companyName, status } = req.body;
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
-            return sendBadRequestResponse(res, "Invalid course ID");
+            await cleanupUploadedIfAny(uploaded);
+            return sendBadRequestResponse(res, "Invalid company ID");
         }
 
         const existingCompany = await Company.findById(id);
         if (!existingCompany) {
-            if (req.file) {
-                const filePath = path.resolve(req.file.path);
-                if (fs.existsSync(filePath)) {
-                    fs.unlinkSync(filePath);
-                }
-            }
+            await cleanupUploadedIfAny(uploaded);
             return sendErrorResponse(res, 404, "Company not found");
         }
 
@@ -124,30 +155,31 @@ export const updateCompany = async (req, res) => {
                 _id: { $ne: id }
             });
             if (companyWithSameName) {
-                if (req.file) {
-                    const filePath = path.resolve(req.file.path);
-                    if (fs.existsSync(filePath)) {
-                        fs.unlinkSync(filePath);
-                    }
-                }
+                await cleanupUploadedIfAny(uploaded);
                 return sendBadRequestResponse(res, "Company with this name already exists");
             }
         }
 
-        // Handle image upload
-        if (req.file) {
-            // Convert the file path to a URL path
-            const newImagePath = `/public/companyImage/${path.basename(req.file.path)}`;
-
-            // Delete old image if exists
-            if (existingCompany.companyImage) {
-                const oldImagePath = path.join(process.cwd(), existingCompany.companyImage);
-                if (fs.existsSync(oldImagePath)) {
-                    fs.unlinkSync(oldImagePath);
+        // 🆕 Handle S3 image upload
+        if (uploaded?.key) {
+            // Delete old image from S3 if exists
+            if (existingCompany.companyImage_key) {
+                try {
+                    await s3.send(
+                        new DeleteObjectCommand({
+                            Bucket: process.env.S3_BUCKET_NAME,
+                            Key: existingCompany.companyImage_key,
+                        })
+                    );
+                } catch (error) {
+                    console.error('Error deleting old image from S3:', error.message);
+                    // Continue with update even if old image deletion fails
                 }
             }
 
-            existingCompany.companyImage = newImagePath;
+            // Update with new image
+            existingCompany.companyImage = publicUrlForKey(uploaded.key);
+            existingCompany.companyImage_key = uploaded.key;
         }
 
         // Update other fields
@@ -162,23 +194,18 @@ export const updateCompany = async (req, res) => {
 
         return sendSuccessResponse(res, "Company updated successfully", existingCompany);
     } catch (error) {
-        if (req.file) {
-            const filePath = path.resolve(req.file.path);
-            if (fs.existsSync(filePath)) {
-                fs.unlinkSync(filePath);
-            }
-        }
+        await cleanupUploadedIfAny(uploaded);
         return ThrowError(res, 500, error.message);
     }
 };
 
-// Delete company (Admin only)
+// 🗑 Delete company (Admin only) - UPDATED FOR S3
 export const deleteCompany = async (req, res) => {
     try {
         const { id } = req.params;
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
-            return sendBadRequestResponse(res, "Invalid course ID");
+            return sendBadRequestResponse(res, "Invalid company ID");
         }
 
         const existingCompany = await Company.findById(id);
@@ -186,11 +213,18 @@ export const deleteCompany = async (req, res) => {
             return sendErrorResponse(res, 404, "Company not found");
         }
 
-        // Delete company image if exists
-        if (existingCompany.companyImage) {
-            const imagePath = path.join(process.cwd(), existingCompany.companyImage);
-            if (fs.existsSync(imagePath)) {
-                fs.unlinkSync(imagePath);
+        // 🆕 Delete company image from S3 if exists
+        if (existingCompany.companyImage_key) {
+            try {
+                await s3.send(
+                    new DeleteObjectCommand({
+                        Bucket: process.env.S3_BUCKET_NAME,
+                        Key: existingCompany.companyImage_key,
+                    })
+                );
+            } catch (error) {
+                console.error('Error deleting image from S3:', error.message);
+                // Continue with deletion even if image deletion fails
             }
         }
 
@@ -201,4 +235,3 @@ export const deleteCompany = async (req, res) => {
         return ThrowError(res, 500, error.message);
     }
 };
-

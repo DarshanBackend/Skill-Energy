@@ -2,11 +2,54 @@ import mongoose from "mongoose";
 import Course from "../models/courseModel.js";
 import { ThrowError } from "../utils/ErrorUtils.js"
 import { sendSuccessResponse, sendErrorResponse, sendBadRequestResponse, sendForbiddenResponse, sendCreatedResponse, sendUnauthorizedResponse } from '../utils/ResponseUtils.js';
-import fs from 'fs';
-import path from 'path';
+import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 
-// Create new course with file uploads
+// 🛠 S3 Client Configuration
+const s3 = new S3Client({
+    region: process.env.S3_REGION || 'us-east-1',
+    credentials: {
+        accessKeyId: process.env.S3_ACCESS_KEY.trim(),
+        secretAccessKey: process.env.S3_SECRET_KEY.trim(),
+    },
+});
+
+// 🌐 Build public URL for S3 objects
+const publicUrlForKey = (key) => {
+    const cdn = process.env.CDN_BASE_URL?.replace(/\/$/, '');
+    if (cdn) return `${cdn}/${key}`;
+    const bucket = process.env.S3_BUCKET_NAME;
+    const region = process.env.S3_REGION || 'us-east-1';
+    return `https://${bucket}.s3.${region}.amazonaws.com/${encodeURI(key)}`;
+};
+
+// 🗑 Cleanup uploaded S3 object in case of errors
+const cleanupUploadedIfAny = async (file) => {
+    if (file?.key) {
+        try {
+            await s3.send(
+                new DeleteObjectCommand({
+                    Bucket: process.env.S3_BUCKET_NAME,
+                    Key: file.key,
+                })
+            );
+        } catch (e) {
+            console.error('S3 cleanup failed:', e.message);
+        }
+    }
+};
+
+// ➕ Create new course with S3 file uploads
 export const createCourse = async (req, res) => {
+    // Support different upload scenarios
+    const pickUploaded = () => {
+        if (req.file) return req.file;
+        if (req.files?.thumbnail?.[0]) return req.files.thumbnail[0];
+        if (req.files?.image?.[0]) return req.files.image[0];
+        return null;
+    };
+
+    const uploaded = pickUploaded();
+
     try {
         // Destructure text fields from req.body
         const {
@@ -21,68 +64,34 @@ export const createCourse = async (req, res) => {
             long_description
         } = req.body;
 
-        // Validate required text fieldsz
+        // Validate required text fields
         if (!video_title || !short_description || !price || !courseCategoryId) {
-            // Clean up uploaded thumbnail if validation fails
-            if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
-                const thumbPath = path.resolve(req.files.thumbnail[0].path);
-                if (fs.existsSync(thumbPath)) {
-                    fs.unlinkSync(thumbPath);
-                }
-            }
+            await cleanupUploadedIfAny(uploaded);
             return ThrowError(res, 400, "Missing required fields: courseCategoryId, video_title, short_description, and price are required");
         }
+
         if (!mongoose.Types.ObjectId.isValid(courseCategoryId)) {
-            // Clean up uploaded thumbnail if validation fails
-            if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
-                const thumbPath = path.resolve(req.files.thumbnail[0].path);
-                if (fs.existsSync(thumbPath)) {
-                    fs.unlinkSync(thumbPath);
-                }
-            }
+            await cleanupUploadedIfAny(uploaded);
             return ThrowError(res, 400, "Invalid courseCategoryId");
         }
+
         if (!mongoose.Types.ObjectId.isValid(course_languageId)) {
-            // Clean up uploaded thumbnail if validation fails
-            if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
-                const thumbPath = path.resolve(req.files.thumbnail[0].path);
-                if (fs.existsSync(thumbPath)) {
-                    fs.unlinkSync(thumbPath);
-                }
-            }
+            await cleanupUploadedIfAny(uploaded);
             return ThrowError(res, 400, "Invalid course_languageId");
         }
 
         // Check if courseCategoryId exists
         const courseCategoryExists = await mongoose.model('CourseCategory').findById(courseCategoryId);
         if (!courseCategoryExists) {
-            // Clean up uploaded thumbnail if validation fails
-            if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
-                const thumbPath = path.resolve(req.files.thumbnail[0].path);
-                if (fs.existsSync(thumbPath)) {
-                    fs.unlinkSync(thumbPath);
-                }
-            }
+            await cleanupUploadedIfAny(uploaded);
             return ThrowError(res, 404, "Course category not found");
         }
 
         // Check if course_languageId exists
         const languageExists = await mongoose.model('Language').findById(course_languageId);
         if (!languageExists) {
-            // Clean up uploaded thumbnail if validation fails
-            if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
-                const thumbPath = path.resolve(req.files.thumbnail[0].path);
-                if (fs.existsSync(thumbPath)) {
-                    fs.unlinkSync(thumbPath);
-                }
-            }
+            await cleanupUploadedIfAny(uploaded);
             return ThrowError(res, 404, "course_language not found");
-        }
-
-        // Validate files (optional: thumbnail only)
-        let thumbnailUrl = "";
-        if (req.file) {
-            thumbnailUrl = req.file.path || req.file.location || "";
         }
 
         // Parse what_are_learn if it's a string (from form-data)
@@ -102,20 +111,23 @@ export const createCourse = async (req, res) => {
         // Prevent duplicate course by video_title
         const existingCourse = await Course.findOne({ video_title });
         if (existingCourse) {
-            // Clean up uploaded thumbnail if duplicate course
-            if (req.file) {
-                const thumbPath = path.resolve(req.file.path);
-                if (fs.existsSync(thumbPath)) {
-                    fs.unlinkSync(thumbPath);
-                }
-            }
+            await cleanupUploadedIfAny(uploaded);
             return ThrowError(res, 400, "A course with this name (video_title) already exists.");
+        }
+
+        // 🆕 Handle S3 thumbnail upload
+        let thumbnail = null;
+        let thumbnail_key = null;
+        if (uploaded?.key) {
+            thumbnail = publicUrlForKey(uploaded.key);
+            thumbnail_key = uploaded.key;
         }
 
         // Create the course
         const newCourse = new Course({
             courseCategory: courseCategoryId,
-            thumbnail: thumbnailUrl,
+            thumbnail,
+            thumbnail_key, // Store S3 key for future deletion
             video_title,
             short_description,
             course_languageId: course_languageId || '',
@@ -137,20 +149,22 @@ export const createCourse = async (req, res) => {
             data: {
                 course: savedCourse,
                 fileInfo: {
-                    thumbnail: req.file ? {
-                        url: thumbnailUrl,
-                        type: req.file.mimetype,
-                        size: req.file.size
+                    thumbnail: uploaded ? {
+                        url: thumbnail,
+                        key: thumbnail_key,
+                        type: uploaded.mimetype,
+                        size: uploaded.size
                     } : null
                 }
             }
         });
     } catch (error) {
+        await cleanupUploadedIfAny(uploaded);
         return ThrowError(res, 500, error.message);
     }
 };
 
-// Get single course by ID
+// 🔍 Get single course by ID (UNCHANGED)
 export const getCourseById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -180,7 +194,7 @@ export const getCourseById = async (req, res) => {
     }
 };
 
-// Get all courses
+// 📋 Get all courses (UNCHANGED)
 export const getAllCourses = async (req, res) => {
     try {
         const courses = await Course.find({}).populate('courseCategory');
@@ -195,7 +209,7 @@ export const getAllCourses = async (req, res) => {
     }
 };
 
-// Get courses by category ID
+// 📂 Get courses by category ID (UNCHANGED)
 export const getCourseByCategory = async (req, res) => {
     try {
         const { categoryId } = req.params;
@@ -216,10 +230,20 @@ export const getCourseByCategory = async (req, res) => {
     }
 };
 
-// Update course
+// ✏️ Update course - UPDATED FOR S3
 export const updateCourse = async (req, res) => {
+    const pickUploaded = () => {
+        if (req.file) return req.file;
+        if (req.files?.thumbnail?.[0]) return req.files.thumbnail[0];
+        if (req.files?.image?.[0]) return req.files.image[0];
+        return null;
+    };
+
+    const uploaded = pickUploaded();
+
     try {
         if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            await cleanupUploadedIfAny(uploaded);
             return ThrowError(res, 400, "Invalid course ID");
         }
 
@@ -227,6 +251,7 @@ export const updateCourse = async (req, res) => {
 
         const course = await Course.findById(req.params.id);
         if (!course) {
+            await cleanupUploadedIfAny(uploaded);
             return ThrowError(res, 404, "Course not found");
         }
 
@@ -234,6 +259,7 @@ export const updateCourse = async (req, res) => {
         if (courseCategoryId) {
             const courseCategoryExists = await mongoose.model('CourseCategory').findById(courseCategoryId);
             if (!courseCategoryExists) {
+                await cleanupUploadedIfAny(uploaded);
                 return ThrowError(res, 404, "Course category not found");
             }
             course.courseCategory = courseCategoryId;
@@ -243,20 +269,32 @@ export const updateCourse = async (req, res) => {
         if (course_languageId) {
             const languageExists = await mongoose.model('Language').findById(course_languageId);
             if (!languageExists) {
+                await cleanupUploadedIfAny(uploaded);
                 return ThrowError(res, 404, "course_language not found");
             }
             course.course_languageId = course_languageId;
         }
 
-        // If a new file is uploaded, delete the old file and update the path
-        if (req.file) {
-            if (course.thumbnail) {
-                const oldThumbPath = path.resolve(course.thumbnail);
-                if (fs.existsSync(oldThumbPath)) {
-                    fs.unlinkSync(oldThumbPath);
+        // 🆕 Handle S3 thumbnail upload
+        if (uploaded?.key) {
+            // Delete old thumbnail from S3 if exists
+            if (course.thumbnail_key) {
+                try {
+                    await s3.send(
+                        new DeleteObjectCommand({
+                            Bucket: process.env.S3_BUCKET_NAME,
+                            Key: course.thumbnail_key,
+                        })
+                    );
+                } catch (error) {
+                    console.error('Error deleting old thumbnail from S3:', error.message);
+                    // Continue with update even if old thumbnail deletion fails
                 }
             }
-            course.thumbnail = req.file.path;
+
+            // Update with new thumbnail
+            course.thumbnail = publicUrlForKey(uploaded.key);
+            course.thumbnail_key = uploaded.key;
         }
 
         course.video_title = video_title ?? course.video_title;
@@ -269,13 +307,15 @@ export const updateCourse = async (req, res) => {
         course.long_description = long_description ?? course.long_description;
 
         const updatedCourse = await course.save();
-        res.status(200).json(updatedCourse);
+        
+        return sendSuccessResponse(res, "Course updated successfully", updatedCourse);
     } catch (error) {
+        await cleanupUploadedIfAny(uploaded);
         return ThrowError(res, 500, error.message);
     }
 };
 
-// Delete course
+// 🗑 Delete course - UPDATED FOR S3
 export const deleteCourse = async (req, res) => {
     try {
         const { id } = req.params;
@@ -289,11 +329,18 @@ export const deleteCourse = async (req, res) => {
             return sendErrorResponse(res, 404, "Course not found");
         }
 
-        // Delete thumbnail image if exists
-        if (existingCourse.thumbnail) {
-            const thumbPath = path.resolve(existingCourse.thumbnail);
-            if (fs.existsSync(thumbPath)) {
-                fs.unlinkSync(thumbPath);
+        // 🆕 Delete thumbnail from S3 if exists
+        if (existingCourse.thumbnail_key) {
+            try {
+                await s3.send(
+                    new DeleteObjectCommand({
+                        Bucket: process.env.S3_BUCKET_NAME,
+                        Key: existingCourse.thumbnail_key,
+                    })
+                );
+            } catch (error) {
+                console.error('Error deleting thumbnail from S3:', error.message);
+                // Continue with deletion even if thumbnail deletion fails
             }
         }
 
@@ -304,4 +351,3 @@ export const deleteCourse = async (req, res) => {
         return ThrowError(res, 500, error.message)
     }
 };
-

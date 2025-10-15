@@ -2,58 +2,91 @@ import mongoose from "mongoose";
 import { ThrowError } from "../utils/ErrorUtils.js";
 import Language from "../models/languageModel.js";
 import { sendSuccessResponse, sendErrorResponse, sendBadRequestResponse, sendCreatedResponse } from '../utils/ResponseUtils.js';
-import path from 'path';
-import fs from 'fs';
+import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 
-// Add new language (Admin only)
+// 🛠 S3 Client Configuration
+const s3 = new S3Client({
+    region: process.env.S3_REGION || 'us-east-1',
+    credentials: {
+        accessKeyId: process.env.S3_ACCESS_KEY.trim(),
+        secretAccessKey: process.env.S3_SECRET_KEY.trim(),
+    },
+});
+
+// 🌐 Build public URL for S3 objects
+const publicUrlForKey = (key) => {
+    const cdn = process.env.CDN_BASE_URL?.replace(/\/$/, '');
+    if (cdn) return `${cdn}/${key}`;
+    const bucket = process.env.S3_BUCKET_NAME;
+    const region = process.env.S3_REGION || 'us-east-1';
+    return `https://${bucket}.s3.${region}.amazonaws.com/${encodeURI(key)}`;
+};
+
+// 🗑 Cleanup uploaded S3 object in case of errors
+const cleanupUploadedIfAny = async (file) => {
+    if (file?.key) {
+        try {
+            await s3.send(
+                new DeleteObjectCommand({
+                    Bucket: process.env.S3_BUCKET_NAME,
+                    Key: file.key,
+                })
+            );
+        } catch (e) {
+            console.error('S3 cleanup failed:', e.message);
+        }
+    }
+};
+
+// ➕ Add new language (Admin only) - UPDATED FOR S3
 export const addLanguage = async (req, res) => {
+    // Support different upload scenarios
+    const pickUploaded = () => {
+        if (req.file) return req.file;
+        if (req.files?.language_thumbnail?.[0]) return req.files.language_thumbnail[0];
+        if (req.files?.thumbnail?.[0]) return req.files.thumbnail[0];
+        if (req.files?.image?.[0]) return req.files.image[0];
+        return null;
+    };
+
+    const uploaded = pickUploaded();
+
     try {
         const { language } = req.body;
 
         if (!language) {
-            // Clean up uploaded image if validation fails
-            if (req.file) {
-                const imgPath = path.resolve(req.file.path);
-                if (fs.existsSync(imgPath)) {
-                    fs.unlinkSync(imgPath);
-                }
-            }
+            await cleanupUploadedIfAny(uploaded);
             return sendBadRequestResponse(res, "Language is required");
         }
 
         const existingLanguage = await Language.findOne({ language });
         if (existingLanguage) {
-            // Clean up uploaded image if duplicate
-            if (req.file) {
-                const imgPath = path.resolve(req.file.path);
-                if (fs.existsSync(imgPath)) {
-                    fs.unlinkSync(imgPath);
-                }
-            }
+            await cleanupUploadedIfAny(uploaded);
             return sendBadRequestResponse(res, "This language already exists");
         }
 
-        let language_thumbnail = '';
-        if (req.file) {
-            language_thumbnail = req.file.path || req.file.location || '';
+        // 🆕 Handle S3 thumbnail upload
+        let language_thumbnail = null;
+        let language_thumbnail_key = null;
+        if (uploaded?.key) {
+            language_thumbnail = publicUrlForKey(uploaded.key);
+            language_thumbnail_key = uploaded.key;
         }
 
-        const newLanguage = await Language.create({ language, language_thumbnail });
+        const newLanguage = await Language.create({ 
+            language, 
+            language_thumbnail,
+            language_thumbnail_key // Store S3 key for future deletion
+        });
 
         return sendCreatedResponse(res, "Language added successfully", newLanguage);
     } catch (error) {
-        // Clean up uploaded image if any error occurs
-        if (req.file) {
-            const imgPath = path.resolve(req.file.path);
-            if (fs.existsSync(imgPath)) {
-                fs.unlinkSync(imgPath);
-            }
-        }
+        await cleanupUploadedIfAny(uploaded);
         return ThrowError(res, 500, error.message);
     }
 };
 
-// Get all languages
+// 📋 Get all languages (UNCHANGED)
 export const getAllLanguages = async (req, res) => {
     try {
         const languages = await Language.find().sort({ language: 1 });
@@ -68,7 +101,7 @@ export const getAllLanguages = async (req, res) => {
     }
 };
 
-// Get language by ID
+// 🔍 Get language by ID (UNCHANGED)
 export const getLanguageById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -88,67 +121,64 @@ export const getLanguageById = async (req, res) => {
     }
 };
 
-// Update language (Admin only)
+// ✏️ Update language (Admin only) - UPDATED FOR S3
 export const updateLanguage = async (req, res) => {
+    const pickUploaded = () => {
+        if (req.file) return req.file;
+        if (req.files?.language_thumbnail?.[0]) return req.files.language_thumbnail[0];
+        if (req.files?.thumbnail?.[0]) return req.files.thumbnail[0];
+        if (req.files?.image?.[0]) return req.files.image[0];
+        return null;
+    };
+
+    const uploaded = pickUploaded();
+
     try {
         const { id } = req.params;
         const { language } = req.body;
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
-            // Clean up uploaded image if validation fails
-            if (req.file) {
-                const imgPath = path.resolve(req.file.path);
-                if (fs.existsSync(imgPath)) {
-                    fs.unlinkSync(imgPath);
-                }
-            }
+            await cleanupUploadedIfAny(uploaded);
             return sendBadRequestResponse(res, "Invalid language ID");
         }
 
         if (!language) {
-            // Clean up uploaded image if validation fails
-            if (req.file) {
-                const imgPath = path.resolve(req.file.path);
-                if (fs.existsSync(imgPath)) {
-                    fs.unlinkSync(imgPath);
-                }
-            }
+            await cleanupUploadedIfAny(uploaded);
             return sendBadRequestResponse(res, "Language is required");
         }
 
         const existingLanguage = await Language.findOne({ language, _id: { $ne: id } });
         if (existingLanguage) {
-            // Clean up uploaded image if duplicate
-            if (req.file) {
-                const imgPath = path.resolve(req.file.path);
-                if (fs.existsSync(imgPath)) {
-                    fs.unlinkSync(imgPath);
-                }
-            }
+            await cleanupUploadedIfAny(uploaded);
             return sendBadRequestResponse(res, "This language already exists");
         }
 
         const languageDoc = await Language.findById(id);
         if (!languageDoc) {
-            // Clean up uploaded image if not found
-            if (req.file) {
-                const imgPath = path.resolve(req.file.path);
-                if (fs.existsSync(imgPath)) {
-                    fs.unlinkSync(imgPath);
-                }
-            }
+            await cleanupUploadedIfAny(uploaded);
             return sendErrorResponse(res, 404, "Language not found");
         }
 
-        // If a new thumbnail is uploaded, delete the old file and update the path
-        if (req.file) {
-            if (languageDoc.language_thumbnail) {
-                const oldThumbPath = path.resolve(languageDoc.language_thumbnail);
-                if (fs.existsSync(oldThumbPath)) {
-                    fs.unlinkSync(oldThumbPath);
+        // 🆕 Handle S3 thumbnail upload
+        if (uploaded?.key) {
+            // Delete old thumbnail from S3 if exists
+            if (languageDoc.language_thumbnail_key) {
+                try {
+                    await s3.send(
+                        new DeleteObjectCommand({
+                            Bucket: process.env.S3_BUCKET_NAME,
+                            Key: languageDoc.language_thumbnail_key,
+                        })
+                    );
+                } catch (error) {
+                    console.error('Error deleting old thumbnail from S3:', error.message);
+                    // Continue with update even if old thumbnail deletion fails
                 }
             }
-            languageDoc.language_thumbnail = req.file.path;
+
+            // Update with new thumbnail
+            languageDoc.language_thumbnail = publicUrlForKey(uploaded.key);
+            languageDoc.language_thumbnail_key = uploaded.key;
         }
 
         languageDoc.language = language;
@@ -156,18 +186,12 @@ export const updateLanguage = async (req, res) => {
 
         return sendSuccessResponse(res, "Language updated successfully", updatedLanguage);
     } catch (error) {
-        // Clean up uploaded image if any error occurs
-        if (req.file) {
-            const imgPath = path.resolve(req.file.path);
-            if (fs.existsSync(imgPath)) {
-                fs.unlinkSync(imgPath);
-            }
-        }
+        await cleanupUploadedIfAny(uploaded);
         return ThrowError(res, 500, error.message);
     }
 };
 
-// Delete language (Admin only)
+// 🗑 Delete language (Admin only) - UPDATED FOR S3
 export const deleteLanguage = async (req, res) => {
     try {
         const { id } = req.params;
@@ -181,11 +205,18 @@ export const deleteLanguage = async (req, res) => {
             return sendErrorResponse(res, 404, "Language not found");
         }
 
-        // Delete language image if exists
-        if (language.language_thumbnail) {
-            const imgPath = path.resolve(language.language_thumbnail);
-            if (fs.existsSync(imgPath)) {
-                fs.unlinkSync(imgPath);
+        // 🆕 Delete language thumbnail from S3 if exists
+        if (language.language_thumbnail_key) {
+            try {
+                await s3.send(
+                    new DeleteObjectCommand({
+                        Bucket: process.env.S3_BUCKET_NAME,
+                        Key: language.language_thumbnail_key,
+                    })
+                );
+            } catch (error) {
+                console.error('Error deleting thumbnail from S3:', error.message);
+                // Continue with deletion even if thumbnail deletion fails
             }
         }
 
@@ -195,4 +226,4 @@ export const deleteLanguage = async (req, res) => {
     } catch (error) {
         return ThrowError(res, 500, error.message);
     }
-}; 
+};

@@ -12,6 +12,10 @@ const companySchema = mongoose.Schema({
     },
     companyImage: {
         type: String
+    },
+    companyImage_key: {
+        type: String,
+        default: null
     }
 }, { timestamps: true })
 

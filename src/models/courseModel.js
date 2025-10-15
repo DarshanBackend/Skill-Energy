@@ -8,6 +8,10 @@ const courseSchema = mongoose.Schema({
     thumbnail: {
         type: String
     },
+    thumbnail_key: {
+        type: String,
+        default: null
+    },
     video_title: {
         type: String
     },

@@ -37,6 +37,10 @@ const registerSchema = mongoose.Schema({
     image: {
         type: String
     },
+    image_key: {
+        type: String,
+        default: null
+    },
     bio: {
         type: String
     },

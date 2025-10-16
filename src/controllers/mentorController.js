@@ -5,7 +5,6 @@ import Course from "../models/courseModel.js";
 import { sendSuccessResponse, sendErrorResponse, sendBadRequestResponse, sendCreatedResponse } from '../utils/ResponseUtils.js';
 import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 
-// 🛠 S3 Client Configuration
 const s3 = new S3Client({
     region: process.env.S3_REGION || 'us-east-1',
     credentials: {
@@ -14,7 +13,6 @@ const s3 = new S3Client({
     },
 });
 
-// 🌐 Build public URL for S3 objects
 const publicUrlForKey = (key) => {
     const cdn = process.env.CDN_BASE_URL?.replace(/\/$/, '');
     if (cdn) return `${cdn}/${key}`;
@@ -23,7 +21,6 @@ const publicUrlForKey = (key) => {
     return `https://${bucket}.s3.${region}.amazonaws.com/${encodeURI(key)}`;
 };
 
-// 🗑 Cleanup uploaded S3 object in case of errors
 const cleanupUploadedIfAny = async (file) => {
     if (file?.key) {
         try {
@@ -39,9 +36,7 @@ const cleanupUploadedIfAny = async (file) => {
     }
 };
 
-// ➕ Add new mentor (Admin only) - UPDATED FOR S3
 export const addMentor = async (req, res) => {
-    // Support different upload scenarios
     const pickUploaded = () => {
         if (req.file) return req.file;
         if (req.files?.mentorImage?.[0]) return req.files.mentorImage[0];
@@ -76,7 +71,6 @@ export const addMentor = async (req, res) => {
             return sendBadRequestResponse(res, "This mentor is already assigned to this course");
         }
 
-        // 🆕 Handle S3 image upload
         let mentorImage = null;
         let mentorImage_key = null;
         if (uploaded?.key) {
@@ -89,7 +83,7 @@ export const addMentor = async (req, res) => {
             courseId,
             status: status || 'active',
             mentorImage,
-            mentorImage_key // Store S3 key for future deletion
+            mentorImage_key
         });
 
         return sendCreatedResponse(res, "Mentor added successfully", newMentor);
@@ -99,7 +93,6 @@ export const addMentor = async (req, res) => {
     }
 };
 
-// 📋 Get all mentors (UNCHANGED)
 export const getAllMentors = async (req, res) => {
     try {
         const mentors = await Mentor.find().populate('courseId', 'title').sort({ createdAt: -1 });
@@ -114,7 +107,6 @@ export const getAllMentors = async (req, res) => {
     }
 };
 
-// 🔍 Get mentor by ID (UNCHANGED)
 export const getMentorById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -134,7 +126,6 @@ export const getMentorById = async (req, res) => {
     }
 };
 
-// ✏️ Update mentor (Admin only) - UPDATED FOR S3
 export const updateMentor = async (req, res) => {
     const pickUploaded = () => {
         if (req.file) return req.file;
@@ -173,9 +164,7 @@ export const updateMentor = async (req, res) => {
             existingMentor.courseId = courseId;
         }
 
-        // 🆕 Handle S3 image upload
         if (uploaded?.key) {
-            // Delete old image from S3 if exists
             if (existingMentor.mentorImage_key) {
                 try {
                     await s3.send(
@@ -186,11 +175,9 @@ export const updateMentor = async (req, res) => {
                     );
                 } catch (error) {
                     console.error('Error deleting old image from S3:', error.message);
-                    // Continue with update even if old image deletion fails
                 }
             }
 
-            // Update with new image
             existingMentor.mentorImage = publicUrlForKey(uploaded.key);
             existingMentor.mentorImage_key = uploaded.key;
         }
@@ -207,7 +194,6 @@ export const updateMentor = async (req, res) => {
     }
 };
 
-// 🗑 Delete mentor (Admin only) - UPDATED FOR S3
 export const deleteMentor = async (req, res) => {
     try {
         const { id } = req.params;
@@ -221,7 +207,6 @@ export const deleteMentor = async (req, res) => {
             return sendErrorResponse(res, 404, "Mentor not found");
         }
 
-        // 🆕 Delete mentor image from S3 if exists
         if (mentor.mentorImage_key) {
             try {
                 await s3.send(
@@ -232,7 +217,6 @@ export const deleteMentor = async (req, res) => {
                 );
             } catch (error) {
                 console.error('Error deleting image from S3:', error.message);
-                // Continue with deletion even if image deletion fails
             }
         }
 
@@ -244,7 +228,6 @@ export const deleteMentor = async (req, res) => {
     }
 };
 
-// 📂 Get mentors by course (UNCHANGED)
 export const getMentorsByCourse = async (req, res) => {
     try {
         const { courseId } = req.params;

@@ -4,7 +4,6 @@ import Language from "../models/languageModel.js";
 import { sendSuccessResponse, sendErrorResponse, sendBadRequestResponse, sendCreatedResponse } from '../utils/ResponseUtils.js';
 import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 
-// 🛠 S3 Client Configuration
 const s3 = new S3Client({
     region: process.env.S3_REGION || 'us-east-1',
     credentials: {
@@ -13,7 +12,6 @@ const s3 = new S3Client({
     },
 });
 
-// 🌐 Build public URL for S3 objects
 const publicUrlForKey = (key) => {
     const cdn = process.env.CDN_BASE_URL?.replace(/\/$/, '');
     if (cdn) return `${cdn}/${key}`;
@@ -22,7 +20,6 @@ const publicUrlForKey = (key) => {
     return `https://${bucket}.s3.${region}.amazonaws.com/${encodeURI(key)}`;
 };
 
-// 🗑 Cleanup uploaded S3 object in case of errors
 const cleanupUploadedIfAny = async (file) => {
     if (file?.key) {
         try {
@@ -38,9 +35,7 @@ const cleanupUploadedIfAny = async (file) => {
     }
 };
 
-// ➕ Add new language (Admin only) - UPDATED FOR S3
 export const addLanguage = async (req, res) => {
-    // Support different upload scenarios
     const pickUploaded = () => {
         if (req.file) return req.file;
         if (req.files?.language_thumbnail?.[0]) return req.files.language_thumbnail[0];
@@ -65,7 +60,6 @@ export const addLanguage = async (req, res) => {
             return sendBadRequestResponse(res, "This language already exists");
         }
 
-        // 🆕 Handle S3 thumbnail upload
         let language_thumbnail = null;
         let language_thumbnail_key = null;
         if (uploaded?.key) {
@@ -76,7 +70,7 @@ export const addLanguage = async (req, res) => {
         const newLanguage = await Language.create({ 
             language, 
             language_thumbnail,
-            language_thumbnail_key // Store S3 key for future deletion
+            language_thumbnail_key
         });
 
         return sendCreatedResponse(res, "Language added successfully", newLanguage);
@@ -86,7 +80,6 @@ export const addLanguage = async (req, res) => {
     }
 };
 
-// 📋 Get all languages (UNCHANGED)
 export const getAllLanguages = async (req, res) => {
     try {
         const languages = await Language.find().sort({ language: 1 });
@@ -101,7 +94,6 @@ export const getAllLanguages = async (req, res) => {
     }
 };
 
-// 🔍 Get language by ID (UNCHANGED)
 export const getLanguageById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -121,7 +113,6 @@ export const getLanguageById = async (req, res) => {
     }
 };
 
-// ✏️ Update language (Admin only) - UPDATED FOR S3
 export const updateLanguage = async (req, res) => {
     const pickUploaded = () => {
         if (req.file) return req.file;
@@ -159,9 +150,7 @@ export const updateLanguage = async (req, res) => {
             return sendErrorResponse(res, 404, "Language not found");
         }
 
-        // 🆕 Handle S3 thumbnail upload
         if (uploaded?.key) {
-            // Delete old thumbnail from S3 if exists
             if (languageDoc.language_thumbnail_key) {
                 try {
                     await s3.send(
@@ -172,11 +161,9 @@ export const updateLanguage = async (req, res) => {
                     );
                 } catch (error) {
                     console.error('Error deleting old thumbnail from S3:', error.message);
-                    // Continue with update even if old thumbnail deletion fails
                 }
             }
 
-            // Update with new thumbnail
             languageDoc.language_thumbnail = publicUrlForKey(uploaded.key);
             languageDoc.language_thumbnail_key = uploaded.key;
         }
@@ -191,7 +178,6 @@ export const updateLanguage = async (req, res) => {
     }
 };
 
-// 🗑 Delete language (Admin only) - UPDATED FOR S3
 export const deleteLanguage = async (req, res) => {
     try {
         const { id } = req.params;
@@ -205,7 +191,6 @@ export const deleteLanguage = async (req, res) => {
             return sendErrorResponse(res, 404, "Language not found");
         }
 
-        // 🆕 Delete language thumbnail from S3 if exists
         if (language.language_thumbnail_key) {
             try {
                 await s3.send(
@@ -216,7 +201,6 @@ export const deleteLanguage = async (req, res) => {
                 );
             } catch (error) {
                 console.error('Error deleting thumbnail from S3:', error.message);
-                // Continue with deletion even if thumbnail deletion fails
             }
         }
 

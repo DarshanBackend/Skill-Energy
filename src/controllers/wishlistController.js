@@ -40,41 +40,53 @@ export const addToWishlist = async (req, res) => {
 export const getUserWishlist = async (req, res) => {
     try {
         const userId = req.user._id;
+
+        // Remove select to get all course details
         const wishlist = await Wishlist.findOne({ userId }).populate({
             path: 'courses',
-            select: 'thumnail video_title price ratings'
+            // 🚨 Remove select to get all fields
+            // select: 'thumnail video_title price ratings' // Remove this line
         });
+
         if (!wishlist || !wishlist.courses || wishlist.courses.length === 0) {
-            return res.status(200).json({ success: true, message: "No wishlist courses found.", data: [] });
+            return res.status(200).json({
+                success: true,
+                message: "No wishlist courses found.",
+                data: []
+            });
         }
 
         // Check for missing courses
-        const originalCourseIds = wishlist.courses.map(c => c && c._id ? c._id.toString() : null);
-        const missingCourseIds = wishlist.courses
-            .map((c, idx) => c ? null : wishlist.courses[idx])
-            .filter(id => id);
+        const validCourses = wishlist.courses.filter(course => course !== null);
+        const missingCourses = wishlist.courses.filter(course => course === null);
 
-        if (missingCourseIds.length > 0) {
-            return res.status(404).json({ success: false, message: `Course ID(s) not found: ${missingCourseIds.join(', ')}` });
+        if (missingCourses.length > 0) {
+            console.warn(`Missing courses detected: ${missingCourses.length}`);
+            // Continue with valid courses instead of returning error
         }
 
-        // Map courses to include only required fields and user-specific rating
-        const data = wishlist.courses.map(course => {
+        // Map courses to include ALL details + calculated averageRating
+        const data = validCourses.map(course => {
+            // Calculate average rating
             let averageRating = 0;
             if (course.ratings && Array.isArray(course.ratings)) {
                 const totalRating = course.ratings.reduce((sum, r) => sum + r.rating, 0);
                 averageRating = course.ratings.length > 0 ? totalRating / course.ratings.length : 0;
             }
+
+            // Return complete course object with added averageRating
             return {
-                courseId: course._id,
-                _id: course._id,
-                thumnail: course.thumnail,
-                video_title: course.video_title,
-                price: course.price,
+                ...course._doc, // Spread all course fields
                 averageRating: Math.round(averageRating * 10) / 10
             };
         });
-        res.status(200).json({ success: true, data });
+
+        res.status(200).json({
+            success: true,
+            data,
+            missingCourses: missingCourses.length // Optional: info about missing courses
+        });
+
     } catch (error) {
         return ThrowError(res, 500, error.message);
     }
@@ -118,7 +130,6 @@ export const removeFromWishlist = async (req, res) => {
     }
 };
 
-// Clear all courses from wishlist
 export const clearWishlist = async (req, res) => {
     try {
         const userId = req.user._id;

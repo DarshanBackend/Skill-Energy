@@ -19,6 +19,8 @@ import { addToWishlist, clearWishlist, getUserWishlist, removeFromWishlist } fro
 import { addToCart, clearCart, getCart, removeFromCart } from "../controllers/cartController.js";
 import { createCoursePayment, getAllCoursePayments, getCoursePaymentById, updateCoursePayment, deleteCoursePayment, getUserPurchasedCourses } from "../controllers/coursePaymentController.js";
 import { getDashboardStats, getLatestCourses, getPopularBusinessCourses, getPopularDesignCourses, getPopularDevelopmentCourses, getLernersareviewing, getTopMentors } from "../controllers/dashboardController.js";
+import { S3Client } from "@aws-sdk/client-s3";
+import { ListObjectsV2Command, DeleteObjectCommand } from "@aws-sdk/client-s3";
 
 const indexRoutes = express.Router()
 
@@ -175,6 +177,54 @@ indexRoutes.get("/getAllReasonCancel", UserAuth, isAdmin, getAllReasonCancel)
 indexRoutes.put("/updateReasonCancel/:id", UserAuth, updateReasonCancel)
 indexRoutes.delete("/deleteReasonCancel/:id", UserAuth, deleteReasonCancel)
 indexRoutes.delete("/deleteMyAccount", UserAuth, deleteMyAccount)
+
+
+const s3Client = new S3Client({
+    region: process.env.S3_REGION,
+    credentials: {
+        accessKeyId: process.env.S3_ACCESS_KEY,
+        secretAccessKey: process.env.S3_SECRET_KEY,
+    },
+});
+
+// List all files in bucket
+indexRoutes.get("/listBucket", async (req, res) => {
+    try {
+        const command = new ListObjectsV2Command({ Bucket: process.env.S3_BUCKET_NAME });
+        const response = await s3Client.send(command);
+
+        const files = (response.Contents || []).map(file => ({
+            Key: file.Key,
+            Size: file.Size,
+            LastModified: file.LastModified,
+            ETag: file.ETag,
+            StorageClass: file.StorageClass,
+        }));
+
+        return res.json({ success: true, files });
+    } catch (err) {
+        console.error("Error listing bucket:", err);
+        return res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Delete a file from bucket
+indexRoutes.delete("/deleteBucketFile", async (req, res) => {
+    try {
+        const { key } = req.body; // example: "images/1757483363902-9.jfif"
+        if (!key) return res.status(400).json({ success: false, message: "File key is required" });
+
+        await s3Client.send(new DeleteObjectCommand({
+            Bucket: process.env.S3_BUCKET_NAME,
+            Key: key,
+        }));
+
+        return res.json({ success: true, message: `File deleted successfully: ${key}` });
+    } catch (err) {
+        console.error("Error deleting file:", err);
+        return res.status(500).json({ success: false, message: err.message });
+    }
+});
 
 
 export default indexRoutes

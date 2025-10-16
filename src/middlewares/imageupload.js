@@ -9,7 +9,7 @@ dotenv.config();
 
 // 🛠 S3 Client Configuration
 const s3 = new S3Client({
-    region: process.env.S3_REGION,
+    region: process.env.S3_REGION || 'ap-south-1',
     credentials: {
         accessKeyId: String(process.env.S3_ACCESS_KEY).trim(),
         secretAccessKey: String(process.env.S3_SECRET_KEY).trim()
@@ -31,7 +31,7 @@ const getS3Folder = (fieldname) => {
             return 'mentorImages';
         case 'language_thumbnail':
             return 'language_thumbnails';
-        case 'image': // General fallback
+        case 'image':
             return 'images';
         default:
             return 'general';
@@ -56,27 +56,27 @@ const storage = multerS3({
             cb(err);
         }
     }
+    // 🚨 No 'acl' property - this fixes the error
 });
+
 
 // ✅ File validation (based on your first code field names)
 const fileFilter = (req, file, cb) => {
     const allowedFieldNames = ['image', 'companyImage', 'thumbnail', 'profileImage', 'video', 'mentorImage', 'language_thumbnail'];
-    
+
     if (allowedFieldNames.includes(file.fieldname)) {
-        // For images
         if (['image', 'companyImage', 'thumbnail', 'profileImage', 'mentorImage', 'language_thumbnail'].includes(file.fieldname)) {
             const isImage = file.mimetype.startsWith('image/');
             const isOctetStream = file.mimetype === 'application/octet-stream';
             const ext = path.extname(file.originalname).toLowerCase();
             const isJfifExt = ext === '.jfif';
-            
+
             if (isImage || isOctetStream || isJfifExt) {
                 cb(null, true);
             } else {
                 cb(new Error(`Invalid file type for ${file.fieldname}. Only images are allowed.`));
             }
         }
-        // For videos
         else if (file.fieldname === 'video') {
             const isVideo = file.mimetype.startsWith('video/');
             if (isVideo) {
@@ -94,8 +94,8 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
     storage: storage,
     fileFilter: fileFilter,
-    limits: { 
-        fileSize: 1024 * 1024 * 200 // 200MB (adjust as needed)
+    limits: {
+        fileSize: 1024 * 1024 * 200 // 200MB
     }
 });
 
@@ -109,7 +109,7 @@ const convertJfifToJpeg = async (req, res, next) => {
 
             const ext = path.extname(file.originalname).toLowerCase();
             const isJfif = ext === '.jfif' || file.mimetype === 'image/jfif' || file.mimetype === 'application/octet-stream';
-            
+
             if (isJfif) {
                 console.log('Converting JFIF to JPEG for S3...');
                 // Note: For S3, you'd need to download, convert, and re-upload

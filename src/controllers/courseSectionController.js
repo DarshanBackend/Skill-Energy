@@ -5,7 +5,6 @@ import Course from "../models/courseModel.js";
 import { sendErrorResponse, sendSuccessResponse } from "../utils/ResponseUtils.js";
 import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 
-// 🛠 S3 Client Configuration
 const s3 = new S3Client({
     region: process.env.S3_REGION || 'us-east-1',
     credentials: {
@@ -14,7 +13,6 @@ const s3 = new S3Client({
     },
 });
 
-// 🌐 Build public URL for S3 objects
 const publicUrlForKey = (key) => {
     const cdn = process.env.CDN_BASE_URL?.replace(/\/$/, '');
     if (cdn) return `${cdn}/${key}`;
@@ -23,7 +21,6 @@ const publicUrlForKey = (key) => {
     return `https://${bucket}.s3.${region}.amazonaws.com/${encodeURI(key)}`;
 };
 
-// 🗑 Cleanup uploaded S3 object in case of errors
 const cleanupUploadedIfAny = async (file) => {
     if (file?.key) {
         try {
@@ -39,26 +36,22 @@ const cleanupUploadedIfAny = async (file) => {
     }
 };
 
-// ➕ Create a new section with S3 video upload
 export const createSection = async (req, res) => {
     let uploadedVideo = null;
 
     try {
         const { courseId, videoNo, sectionNo, section_title, video_title, video_time } = req.body;
 
-        // Validate required fields
         if (!courseId || !videoNo || !sectionNo || !section_title || !video_title || !video_time) {
             return ThrowError(res, 400, "Missing required fields: All fields are required");
         }
 
-        // Validate files
         if (!req.files || !req.files.video || !req.files.video[0]) {
             return ThrowError(res, 400, "Video file is missing. Please upload a video file.");
         }
 
         uploadedVideo = req.files.video[0];
 
-        // 🆕 Get S3 file info
         const video = uploadedVideo.key ? publicUrlForKey(uploadedVideo.key) : "";
         const video_key = uploadedVideo.key || null;
 
@@ -67,17 +60,14 @@ export const createSection = async (req, res) => {
             return ThrowError(res, 400, "Invalid course ID");
         }
 
-        // Check if the course exists
         const parentContent = await Course.findById(courseId);
         if (!parentContent) {
             await cleanupUploadedIfAny(uploadedVideo);
             return ThrowError(res, 404, "Parent course not found");
         }
 
-        // --- Parse all numeric inputs ---
         const parsedSectionNo = parseInt(sectionNo, 10);
         const parsedVideoNo = parseInt(videoNo, 10);
-        // Strip any non-numeric characters and then parse
         const numericVideoTimeString = video_time.toString().replace(/[^0-9]/g, '');
         const parsedVideoTime = parseInt(numericVideoTimeString, 10);
 
@@ -86,7 +76,6 @@ export const createSection = async (req, res) => {
             return ThrowError(res, 400, "Invalid format for video_time. Please provide a number.");
         }
 
-        // Check for duplicate video with the same videoNo or video_title in the same section
         const existingVideo = await CourseSection.findOne({
             courseId,
             sectionNo: parsedSectionNo,
@@ -115,7 +104,7 @@ export const createSection = async (req, res) => {
             sectionNo: parsedSectionNo,
             section_title,
             video,
-            video_key, // 🆕 Store S3 key
+            video_key,
             videoNo: parsedVideoNo,
             video_title,
             video_time: parsedVideoTime
@@ -123,7 +112,6 @@ export const createSection = async (req, res) => {
 
         await section.save();
 
-        // --- Automatic Total Time Calculation ---
         const sectionVideos = await CourseSection.find({ courseId, sectionNo: parsedSectionNo });
         const newTotalTime = sectionVideos.reduce((sum, vid) => sum + (vid.video_time || 0), 0);
 
@@ -132,7 +120,6 @@ export const createSection = async (req, res) => {
             { $set: { total_time: newTotalTime } }
         );
 
-        // Fetch the created section again to get the updated total_time
         const updatedSavedSection = await CourseSection.findById(section._id);
 
         res.status(201).json({
@@ -156,7 +143,6 @@ export const createSection = async (req, res) => {
     }
 };
 
-// 📋 Get all sections for a particular course (UNCHANGED)
 export const getSectionsByCourseId = async (req, res) => {
     try {
         const { courseId } = req.params;
@@ -204,7 +190,6 @@ export const getSectionsByCourseId = async (req, res) => {
     }
 };
 
-// 🔍 Get section by ID (UNCHANGED)
 export const getSectionById = async (req, res) => {
     try {
         if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
@@ -220,7 +205,6 @@ export const getSectionById = async (req, res) => {
     }
 };
 
-// ✏️ Update a section - UPDATED FOR S3
 export const updateSection = async (req, res) => {
     let uploadedVideo = null;
 
@@ -248,11 +232,9 @@ export const updateSection = async (req, res) => {
             section.courseId = courseId;
         }
 
-        // 🆕 Handle S3 video upload
         if (req.files && req.files.video && req.files.video[0]) {
             uploadedVideo = req.files.video[0];
 
-            // Delete old video from S3 if exists
             if (section.video_key) {
                 try {
                     await s3.send(
@@ -263,16 +245,13 @@ export const updateSection = async (req, res) => {
                     );
                 } catch (error) {
                     console.error('Error deleting old video from S3:', error.message);
-                    // Continue with update even if old video deletion fails
                 }
             }
 
-            // Update with new video
             section.video = uploadedVideo.key ? publicUrlForKey(uploadedVideo.key) : "";
             section.video_key = uploadedVideo.key || null;
         }
 
-        // Update other fields if provided
         section.sectionNo = sectionNo !== undefined ? parseInt(sectionNo, 10) : section.sectionNo;
         section.section_title = section_title ?? section.section_title;
         section.total_time = total_time !== undefined ? parseInt(total_time) : section.total_time;
@@ -280,7 +259,6 @@ export const updateSection = async (req, res) => {
         section.video_title = video_title ?? section.video_title;
         section.video_time = video_time !== undefined ? parseInt(video_time) : section.video_time;
 
-        // --- Automatic Total Time Calculation (after update) ---
         const savedSection = await section.save();
         const sectionVideos = await CourseSection.find({ courseId: section.courseId, sectionNo: section.sectionNo });
         const newTotalTime = sectionVideos.reduce((sum, vid) => sum + (vid.video_time || 0), 0);
@@ -289,7 +267,6 @@ export const updateSection = async (req, res) => {
             { $set: { total_time: newTotalTime } }
         );
         
-        // Fetch the updated section again to get the new total_time
         const updatedSectionWithTotal = await CourseSection.findById(section._id);
         
         return sendSuccessResponse(res, "Section updated successfully", updatedSectionWithTotal);
@@ -299,7 +276,6 @@ export const updateSection = async (req, res) => {
     }
 };
 
-// 🗑 Delete a section - UPDATED FOR S3
 export const deleteSection = async (req, res) => {
     try {
         const { id } = req.params;
@@ -308,13 +284,11 @@ export const deleteSection = async (req, res) => {
             return ThrowError(res, 400, "Invalid section ID");
         }
 
-        // Find the section first to get the file URLs
         const existingSection = await CourseSection.findById(id);
         if (!existingSection) {
             return sendErrorResponse(res, 404, "Section not found");
         }
 
-        // 🆕 Delete video file from S3 if exists
         if (existingSection.video_key) {
             try {
                 await s3.send(
@@ -325,11 +299,9 @@ export const deleteSection = async (req, res) => {
                 );
             } catch (error) {
                 console.error('Error deleting video from S3:', error.message);
-                // Continue with deletion even if video deletion fails
             }
         }
 
-        // Delete the section from database
         const deletedSection = await CourseSection.findByIdAndDelete(id);
 
         return sendSuccessResponse(res, "Section and associated files deleted successfully", deletedSection);

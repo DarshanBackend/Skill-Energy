@@ -2,6 +2,7 @@ import Register from "../models/registerModel.js";
 import { ThrowError } from "../utils/ErrorUtils.js"
 import bcrypt from "bcryptjs";
 import nodemailer from "nodemailer"
+import jwt from "jsonwebtoken";
 import { sendSuccessResponse, sendErrorResponse, sendBadRequestResponse, sendUnauthorizedResponse } from '../utils/ResponseUtils.js';
 
 const generateOTP = () => Math.floor(1000 + Math.random() * 9000).toString();
@@ -192,6 +193,73 @@ export const changePassword = async (req, res) => {
 
     } catch (error) {
         return sendErrorResponse(res, 500, error.message);
+    }
+};
+
+export const googleLogin = async (req, res) => {
+    try {
+        const { uid, name, email, image } = req.body;
+
+        if (!uid || !name || !email || !image) {
+            return res.status(400).json({
+                success: false,
+                message: "uid, name, email & image are required!"
+            });
+        }
+
+        // Try to find existing user
+        let user = await Register.findOne({ email });
+        let isNewUser = false;
+
+        if (user) {
+            // Update user info if it changed
+            const updatedFields = {};
+            if (user.name !== name) updatedFields.name = name;
+            if (user.image !== image) updatedFields.image = image;
+            if (user.googleId !== uid) updatedFields.googleId = uid;
+
+            if (Object.keys(updatedFields).length > 0) {
+                user = await Register.findByIdAndUpdate(user._id, updatedFields, { new: true });
+            }
+        } else {
+            // Create new user
+            user = await Register.create({
+                googleId: uid,
+                name,
+                email,
+                image,
+                verified: true
+            });
+            isNewUser = true;
+        }
+
+        // Generate JWT token
+        const payload = {
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role || 'user',
+            isAdmin: user.role === 'admin'
+        };
+
+        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "7d" });
+
+        return res.status(isNewUser ? 201 : 200).json({
+            success: true,
+            message: isNewUser
+                ? "New social login & registration successful"
+                : "Login successful",
+            user,
+            token
+        });
+
+    } catch (error) {
+        console.error("Google Login Error:", error.message);
+        return res.status(500).json({
+            success: false,
+            message: "Error while logging in with Google",
+            error: error.message
+        });
     }
 };
 

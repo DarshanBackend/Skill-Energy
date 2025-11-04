@@ -3,6 +3,7 @@ import Course from "../models/courseModel.js";
 import { ThrowError } from "../utils/ErrorUtils.js"
 import { sendSuccessResponse, sendErrorResponse, sendBadRequestResponse, sendForbiddenResponse, sendCreatedResponse, sendUnauthorizedResponse } from '../utils/ResponseUtils.js';
 import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import Wishlist from "../models/wishlistModel.js";
 
 const s3 = new S3Client({
     region: process.env.S3_REGION || 'us-east-1',
@@ -192,9 +193,11 @@ export const getAllCourses = async (req, res) => {
     }
 };
 
+
 export const getCourseByCategory = async (req, res) => {
     try {
         const { categoryId } = req.params;
+        const userId = req.user?._id;
 
         if (!mongoose.Types.ObjectId.isValid(categoryId)) {
             return sendBadRequestResponse(res, "Invalid category ID");
@@ -206,7 +209,22 @@ export const getCourseByCategory = async (req, res) => {
             return sendSuccessResponse(res, "No courses found for this category", []);
         }
 
-        return sendSuccessResponse(res, "Courses fetched successfully", courses);
+        // ❤️ Get wishlist for current user
+        let wishlistCourseIds = [];
+        if (userId) {
+            const wishlist = await Wishlist.findOne({ userId });
+            wishlistCourseIds = wishlist
+                ? wishlist.courses.map((id) => id.toString())
+                : [];
+        }
+
+        // 🩵 Add isWishlisted flag to each course
+        const data = courses.map((course) => ({
+            ...course.toObject(),
+            isWishlisted: wishlistCourseIds.includes(course._id.toString()),
+        }));
+
+        return sendSuccessResponse(res, "Courses fetched successfully", data);
     } catch (error) {
         return ThrowError(res, 500, error.message);
     }
@@ -282,7 +300,7 @@ export const updateCourse = async (req, res) => {
         course.long_description = long_description ?? course.long_description;
 
         const updatedCourse = await course.save();
-        
+
         return sendSuccessResponse(res, "Course updated successfully", updatedCourse);
     } catch (error) {
         await cleanupUploadedIfAny(uploaded);

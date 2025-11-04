@@ -18,7 +18,7 @@ import { addRating, getRatingById, getAllRatings, updateRating, deleteRating, ge
 import { addToWishlist, clearWishlist, getUserWishlist, removeFromWishlist } from "../controllers/wishlistController.js";
 import { addToCart, clearCart, getCart, removeFromCart } from "../controllers/cartController.js";
 import { createCoursePayment, getAllCoursePayments, getCoursePaymentById, updateCoursePayment, deleteCoursePayment, getUserPurchasedCourses } from "../controllers/coursePaymentController.js";
-import { getDashboardStats, getLatestCourses, getPopularBusinessCourses, getPopularDesignCourses, getPopularDevelopmentCourses, getLernersareviewing, getTopMentors } from "../controllers/dashboardController.js";
+import { getDashboardStats, getLatestCourses, getPopularBusinessCourses, getPopularDesignCourses, getPopularDevelopmentCourses, getLernersareviewing, getTopMentors, filterCoursesController } from "../controllers/dashboardController.js";
 import { S3Client } from "@aws-sdk/client-s3";
 import { ListObjectsV2Command, DeleteObjectCommand } from "@aws-sdk/client-s3";
 
@@ -84,6 +84,7 @@ indexRoutes.get('/getCourseByCategory/:categoryId', UserAuth, getCourseByCategor
 indexRoutes.put('/updateCourse/:id', UserAuth, isAdmin, upload.single('thumbnail'), updateCourse);
 indexRoutes.delete('/deleteCourse/:id', UserAuth, isAdmin, deleteCourse);
 indexRoutes.get('/getPopularDesignCourses', UserAuth, getPopularDesignCourses);
+indexRoutes.get('/filterCoursesController', filterCoursesController);
 
 
 

@@ -9,6 +9,9 @@ import Mentor from '../models/mentorModel.js';
 import { ThrowError } from '../utils/ErrorUtils.js';
 import { attachWishlistFlag } from "../utils/wishlistHelper.js";
 import Wishlist from '../models/wishlistModel.js';
+import { sendErrorResponse, sendSuccessResponse } from '../utils/ResponseUtils.js';
+import Language from "../models/languageModel.js";
+import CourseSection from "../models/courseSectionModel.js";
 
 export const getDashboardStats = async (req, res) => {
     try {
@@ -267,5 +270,71 @@ export const getTopMentors = async (req, res) => {
         });
     } catch (error) {
         return ThrowError(res, 500, error.message);
+    }
+};
+
+export const filterCoursesController = async (req, res) => {
+    try {
+        const {
+            sortBy,           // 'ratings' | 'newest'
+            language,         // language name e.g. 'English'
+            topics,           // language topic e.g. 'Python'
+            subcategory,      // category e.g. 'Web Development'
+            minRating         // e.g. 4.5, 4.0, 3.5
+        } = req.query;
+
+        let filter = {};
+
+        if (language) {
+            filter.language = { $regex: new RegExp(language, "i") };
+        }
+
+        if (topics) {
+            const languageDoc = await Language.findOne({
+                language: { $regex: new RegExp(topics, "i") }
+            });
+            if (languageDoc) {
+                filter.course_languageId = languageDoc._id;
+            }
+        }
+
+        if (subcategory) {
+            const categoryDoc = await CourseCategory.findOne({
+                courseCategoryName: { $regex: new RegExp(subcategory, "i") }
+            });
+            if (categoryDoc) {
+                filter.courseCategory = categoryDoc._id;
+            }
+        }
+
+        let pipeline = [
+            { $match: filter },
+            {
+                $addFields: {
+                    avgRating: { $avg: "$ratings.rating" },
+                    totalRatings: { $size: "$ratings" }
+                }
+            }
+        ];
+
+        if (minRating) {
+            pipeline.push({
+                $match: { avgRating: { $gte: parseFloat(minRating) } }
+            });
+        }
+
+        let sortQuery = {};
+        if (sortBy === "ratings") sortQuery = { avgRating: -1 };
+        else if (sortBy === "newest") sortQuery = { createdAt: -1 };
+        else sortQuery = { createdAt: -1 }; // default newest
+
+        pipeline.push({ $sort: sortQuery });
+
+        const courses = await Course.aggregate(pipeline);
+
+        return sendSuccessResponse(res, "Courses filtered successfully", courses);
+    } catch (error) {
+        console.error("Filter Error:", error);
+        return sendErrorResponse(res, 500, "Error filtering courses", error.message);
     }
 };

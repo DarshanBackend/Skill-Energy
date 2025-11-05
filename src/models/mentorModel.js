@@ -4,23 +4,26 @@ const mentorSchema = mongoose.Schema({
     mentorName: {
         type: String,
         required: true,
+        unique: true,
     },
-    courseId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Course"
-    },
+    courseIds: [
+        {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Course",
+        },
+    ],
     mentorImage: {
-        type: String
+        type: String,
     },
     mentorImage_key: {
         type: String,
-        default: null
+        default: null,
     },
     status: {
         type: String,
-        enum: ['active', 'inactive'],
-        default: 'active'
+        enum: ["active", "inactive"],
+        default: "active",
     },
-}, { timestamps: true })
+}, { timestamps: true });
 
-export default mongoose.model("Mentor", mentorSchema)   
+export default mongoose.model("Mentor", mentorSchema);

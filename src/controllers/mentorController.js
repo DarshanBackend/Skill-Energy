@@ -47,28 +47,38 @@ export const addMentor = async (req, res) => {
     const uploaded = pickUploaded();
 
     try {
-        const { mentorName, courseId, status } = req.body;
+        let { mentorName, courseIds, status } = req.body;
 
-        if (!mentorName || !courseId) {
-            await cleanupUploadedIfAny(uploaded);
-            return sendBadRequestResponse(res, "Mentor name and Course ID are required");
+        if (typeof courseIds === "string") {
+            try {
+                courseIds = JSON.parse(courseIds);
+            } catch {
+                courseIds = courseIds.split(",").map(id => id.trim());
+            }
         }
 
-        if (!mongoose.Types.ObjectId.isValid(courseId)) {
+        if (!mentorName || !Array.isArray(courseIds) || courseIds.length === 0) {
             await cleanupUploadedIfAny(uploaded);
-            return sendBadRequestResponse(res, "Invalid Course ID");
+            return sendBadRequestResponse(res, "Mentor name and at least one Course ID are required");
         }
 
-        const course = await Course.findById(courseId);
-        if (!course) {
-            await cleanupUploadedIfAny(uploaded);
-            return sendErrorResponse(res, 404, "Course not found");
-        }
-
-        const existingMentor = await Mentor.findOne({ mentorName, courseId });
+        const existingMentor = await Mentor.findOne({ mentorName: mentorName.trim() });
         if (existingMentor) {
             await cleanupUploadedIfAny(uploaded);
-            return sendBadRequestResponse(res, "This mentor is already assigned to this course");
+            return sendBadRequestResponse(res, `Mentor "${mentorName}" already exists`);
+        }
+
+        for (const id of courseIds) {
+            if (!mongoose.Types.ObjectId.isValid(id)) {
+                await cleanupUploadedIfAny(uploaded);
+                return sendBadRequestResponse(res, `Invalid Course ID: ${id}`);
+            }
+
+            const course = await Course.findById(id);
+            if (!course) {
+                await cleanupUploadedIfAny(uploaded);
+                return sendErrorResponse(res, 404, `Course not found for ID: ${id}`);
+            }
         }
 
         let mentorImage = null;
@@ -79,11 +89,11 @@ export const addMentor = async (req, res) => {
         }
 
         const newMentor = await Mentor.create({
-            mentorName,
-            courseId,
-            status: status || 'active',
+            mentorName: mentorName.trim(),
+            courseIds,
+            status: status || "active",
             mentorImage,
-            mentorImage_key
+            mentorImage_key,
         });
 
         return sendCreatedResponse(res, "Mentor added successfully", newMentor);
@@ -138,7 +148,7 @@ export const updateMentor = async (req, res) => {
 
     try {
         const { id } = req.params;
-        const { mentorName, courseId, status } = req.body;
+        let { mentorName, courseIds, status } = req.body;
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
             await cleanupUploadedIfAny(uploaded);
@@ -151,19 +161,38 @@ export const updateMentor = async (req, res) => {
             return sendErrorResponse(res, 404, "Mentor not found");
         }
 
-        if (courseId) {
-            if (!mongoose.Types.ObjectId.isValid(courseId)) {
-                await cleanupUploadedIfAny(uploaded);
-                return sendBadRequestResponse(res, "Invalid Course ID format");
+        // ✅ Handle multiple course IDs
+        if (courseIds) {
+            if (typeof courseIds === "string") {
+                try {
+                    courseIds = JSON.parse(courseIds);
+                } catch {
+                    courseIds = courseIds.split(",").map(id => id.trim());
+                }
             }
-            const course = await Course.findById(courseId);
-            if (!course) {
+
+            if (!Array.isArray(courseIds)) {
                 await cleanupUploadedIfAny(uploaded);
-                return sendErrorResponse(res, 404, "Course not found");
+                return sendBadRequestResponse(res, "courseIds must be an array or comma-separated string");
             }
-            existingMentor.courseId = courseId;
+
+            // Validate course IDs
+            for (const cid of courseIds) {
+                if (!mongoose.Types.ObjectId.isValid(cid)) {
+                    await cleanupUploadedIfAny(uploaded);
+                    return sendBadRequestResponse(res, `Invalid Course ID: ${cid}`);
+                }
+                const course = await Course.findById(cid);
+                if (!course) {
+                    await cleanupUploadedIfAny(uploaded);
+                    return sendErrorResponse(res, 404, `Course not found for ID: ${cid}`);
+                }
+            }
+
+            existingMentor.courseIds = courseIds;
         }
 
+        // ✅ Handle image update
         if (uploaded?.key) {
             if (existingMentor.mentorImage_key) {
                 try {
@@ -174,7 +203,7 @@ export const updateMentor = async (req, res) => {
                         })
                     );
                 } catch (error) {
-                    console.error('Error deleting old image from S3:', error.message);
+                    console.error("Error deleting old image from S3:", error.message);
                 }
             }
 
@@ -235,13 +264,33 @@ export const getMentorsByCourse = async (req, res) => {
             return sendBadRequestResponse(res, "Invalid Course ID");
         }
         const mentors = await Mentor.find({ courseId, status: 'active' }).populate('courseId', 'title');
-        
+
         if (!mentors || mentors.length === 0) {
             return sendSuccessResponse(res, "No mentors found for this course", []);
         }
-        
+
         return sendSuccessResponse(res, "Mentors for course fetched successfully", mentors);
     } catch (error) {
         return ThrowError(res, 500, error.message);
+    }
+};
+
+export const getCoursesByMentor = async (req, res) => {
+    try {
+        const { mentorId } = req.params;
+
+        const mentor = await Mentor.findById(mentorId).populate("courseIds");
+
+        if (!mentor) {
+            return res.status(404).json({ success: false, message: "Mentor not found" });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: `Courses for mentor: ${mentor.mentorName}`,
+            courses: mentor.courseIds,
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
     }
 };

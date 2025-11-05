@@ -3,6 +3,7 @@ import { ThrowError } from "../utils/ErrorUtils.js";
 import Language from "../models/languageModel.js";
 import { sendSuccessResponse, sendErrorResponse, sendBadRequestResponse, sendCreatedResponse } from '../utils/ResponseUtils.js';
 import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import courseModel from "../models/courseModel.js";
 
 const s3 = new S3Client({
     region: process.env.S3_REGION || 'us-east-1',
@@ -67,8 +68,8 @@ export const addLanguage = async (req, res) => {
             language_thumbnail_key = uploaded.key;
         }
 
-        const newLanguage = await Language.create({ 
-            language, 
+        const newLanguage = await Language.create({
+            language,
             language_thumbnail,
             language_thumbnail_key
         });
@@ -209,5 +210,60 @@ export const deleteLanguage = async (req, res) => {
         return sendSuccessResponse(res, "Language deleted successfully");
     } catch (error) {
         return ThrowError(res, 500, error.message);
+    }
+};
+
+export const filterLanguages = async (req, res) => {
+    try {
+        const { search } = req.query;
+
+        if (!search || search.trim() === "") {
+            return sendBadRequestResponse(res, "Please provide a search term (e.g. ?search=p)");
+        }
+
+        const regex = new RegExp("^" + search, "i");
+
+        const languages = await Language.find({ language: regex }).sort({ language: 1 });
+
+        if (!languages || languages.length === 0) {
+            return sendSuccessResponse(res, "No languages found for given search", []);
+        }
+
+        return sendSuccessResponse(res, "Languages filtered successfully", languages);
+
+    } catch (error) {
+        return ThrowError(res, 500, error.message);
+    }
+};
+
+export const getCoursesByLanguage = async (req, res) => {
+    try {
+        const { languageId } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(languageId)) {
+            return sendBadRequestResponse(res, "Invalid Language ID format");
+        }
+
+        const language = await Language.findById(languageId);
+        if (!language) {
+            return sendErrorResponse(res, 404, "Language not found");
+        }
+
+        const courses = await courseModel.find({ course_languageId: languageId })
+            .populate("courseCategory", "courseCategoryName")
+            .populate("course_languageId", "language")
+            .sort({ createdAt: -1 });
+
+        if (!courses || courses.length === 0) {
+            return sendSuccessResponse(res, `No courses found for language: ${language.language}`, []);
+        }
+
+        return sendSuccessResponse(
+            res,
+            `Courses fetched successfully for language: ${language.language}`,
+            courses
+        );
+    } catch (error) {
+        return sendErrorResponse(res, 500, error.message);
     }
 };

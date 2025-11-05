@@ -11,8 +11,8 @@ import { createbilling, deleteBillingAddress, getAllBillingAddress, getBillingAd
 import { createReasonCancel, deleteMyAccount, deleteReasonCancel, getAllReasonCancel, getReasonCancelById, updateReasonCancel } from "../controllers/reasonDeleteAccountController.js";
 import { createSection, deleteSection, getSectionById, getSectionsByCourseId, updateSection } from "../controllers/courseSectionController.js";
 import { addCompany, deleteCompany, getAllCompanies, getCompanyById, updateCompany } from "../controllers/companyController.js";
-import { addMentor, deleteMentor, getAllMentors, getMentorById, getMentorsByCourse, updateMentor } from "../controllers/mentorController.js";
-import { addLanguage, deleteLanguage, getAllLanguages, getLanguageById, updateLanguage } from "../controllers/languageController.js";
+import { addMentor, deleteMentor, getAllMentors, getCoursesByMentor, getMentorById, getMentorsByCourse, updateMentor } from "../controllers/mentorController.js";
+import { addLanguage, deleteLanguage, filterLanguages, getAllLanguages, getCoursesByLanguage, getLanguageById, updateLanguage } from "../controllers/languageController.js";
 import { addreminder, getAllReminders, getReminderById, updateReminder, deleteReminder } from "../controllers/reminderController.js";
 import { addRating, getRatingById, getAllRatings, updateRating, deleteRating, getCourseRatings, totalRatings } from "../controllers/ratingController.js";
 import { addToWishlist, clearWishlist, getUserWishlist, removeFromWishlist } from "../controllers/wishlistController.js";
@@ -58,6 +58,8 @@ indexRoutes.get("/getLanguageById/:id", UserAuth, getLanguageById)
 indexRoutes.get("/getAllLanguages", UserAuth, getAllLanguages)
 indexRoutes.put("/updateLanguage/:id", UserAuth, isAdmin, upload.single('language_thumbnail'), updateLanguage)
 indexRoutes.delete("/deleteLanguage/:id", UserAuth, isAdmin, deleteLanguage)
+indexRoutes.get("/filterLanguages", filterLanguages)
+indexRoutes.get("/getCoursesByLanguage/:languageId", getCoursesByLanguage)
 
 
 //couresCategory Routes
@@ -103,6 +105,7 @@ indexRoutes.get("/getAllMentors", UserAuth, getAllMentors)
 indexRoutes.put("/updateMentor/:id", UserAuth, isAdmin, upload.single("mentorImage"), updateMentor)
 indexRoutes.delete("/deleteMentor/:id", UserAuth, isAdmin, deleteMentor)
 indexRoutes.get("/getMentorsByCourse/:courseId", UserAuth, getMentorsByCourse)
+indexRoutes.get("/getCoursesByMentor/:mentorId/courses", UserAuth, getCoursesByMentor)
 
 
 //premium Routes

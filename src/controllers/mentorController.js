@@ -105,7 +105,7 @@ export const addMentor = async (req, res) => {
 
 export const getAllMentors = async (req, res) => {
     try {
-        const mentors = await Mentor.find().populate('courseId', 'title').sort({ createdAt: -1 });
+        const mentors = await Mentor.find().populate('courseIds', 'title').sort({ createdAt: -1 });
 
         if (!mentors.length) {
             return sendSuccessResponse(res, "No mentors found", []);
@@ -125,7 +125,7 @@ export const getMentorById = async (req, res) => {
             return sendBadRequestResponse(res, "Invalid mentor ID");
         }
 
-        const mentor = await Mentor.findById(id).populate('courseId', 'title');
+        const mentor = await Mentor.findById(id).populate('courseIds', 'title');
         if (!mentor) {
             return sendErrorResponse(res, 404, "Mentor not found");
         }

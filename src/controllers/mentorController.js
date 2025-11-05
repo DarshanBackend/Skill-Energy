@@ -260,10 +260,15 @@ export const deleteMentor = async (req, res) => {
 export const getMentorsByCourse = async (req, res) => {
     try {
         const { courseId } = req.params;
+
         if (!mongoose.Types.ObjectId.isValid(courseId)) {
             return sendBadRequestResponse(res, "Invalid Course ID");
         }
-        const mentors = await Mentor.find({ courseId, status: 'active' }).populate('courseId', 'title');
+
+        const mentors = await Mentor.find({
+            courseIds: courseId,
+            status: "active",
+        }).populate("courseIds", "title");
 
         if (!mentors || mentors.length === 0) {
             return sendSuccessResponse(res, "No mentors found for this course", []);

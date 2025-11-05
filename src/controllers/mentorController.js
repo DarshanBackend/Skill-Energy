@@ -4,6 +4,7 @@ import Mentor from "../models/mentorModel.js";
 import Course from "../models/courseModel.js";
 import { sendSuccessResponse, sendErrorResponse, sendBadRequestResponse, sendCreatedResponse } from '../utils/ResponseUtils.js';
 import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import Wishlist from "../models/wishlistModel.js";
 
 const s3 = new S3Client({
     region: process.env.S3_REGION || 'us-east-1',
@@ -283,6 +284,7 @@ export const getMentorsByCourse = async (req, res) => {
 export const getCoursesByMentor = async (req, res) => {
     try {
         const { mentorId } = req.params;
+        const userId = req.user?._id;
 
         const mentor = await Mentor.findById(mentorId).populate("courseIds");
 
@@ -290,10 +292,23 @@ export const getCoursesByMentor = async (req, res) => {
             return res.status(404).json({ success: false, message: "Mentor not found" });
         }
 
+        let wishlistCourseIds = [];
+        if (userId) {
+            const wishlist = await Wishlist.findOne({ userId });
+            wishlistCourseIds = wishlist
+                ? wishlist.courses.map(id => id.toString())
+                : [];
+        }
+
+        const courses = mentor.courseIds.map(course => ({
+            ...course.toObject(),
+            isWishlisted: wishlistCourseIds.includes(course._id.toString()),
+        }));
+
         return res.status(200).json({
             success: true,
             message: `Courses for mentor: ${mentor.mentorName}`,
-            courses: mentor.courseIds,
+            courses,
         });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });

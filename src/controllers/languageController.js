@@ -4,6 +4,7 @@ import Language from "../models/languageModel.js";
 import { sendSuccessResponse, sendErrorResponse, sendBadRequestResponse, sendCreatedResponse } from '../utils/ResponseUtils.js';
 import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import courseModel from "../models/courseModel.js";
+import Wishlist from "../models/wishlistModel.js";
 
 const s3 = new S3Client({
     region: process.env.S3_REGION || 'us-east-1',
@@ -239,6 +240,7 @@ export const filterLanguages = async (req, res) => {
 export const getCoursesByLanguage = async (req, res) => {
     try {
         const { languageId } = req.params;
+        const userId = req.user?._id;
 
         if (!mongoose.Types.ObjectId.isValid(languageId)) {
             return sendBadRequestResponse(res, "Invalid Language ID format");
@@ -252,16 +254,30 @@ export const getCoursesByLanguage = async (req, res) => {
         const courses = await courseModel.find({ course_languageId: languageId })
             .populate("courseCategory", "courseCategoryName")
             .populate("course_languageId", "language")
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean();
 
         if (!courses || courses.length === 0) {
             return sendSuccessResponse(res, `No courses found for language: ${language.language}`, []);
         }
 
+        let wishlistCourseIds = [];
+        if (userId) {
+            const wishlist = await Wishlist.findOne({ userId });
+            wishlistCourseIds = wishlist
+                ? wishlist.courses.map(id => id.toString())
+                : [];
+        }
+
+        const data = courses.map(course => ({
+            ...course,
+            isWishlisted: wishlistCourseIds.includes(course._id.toString()),
+        }));
+
         return sendSuccessResponse(
             res,
             `Courses fetched successfully for language: ${language.language}`,
-            courses
+            data
         );
     } catch (error) {
         return sendErrorResponse(res, 500, error.message);

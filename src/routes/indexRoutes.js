@@ -59,7 +59,7 @@ indexRoutes.get("/getAllLanguages", UserAuth, getAllLanguages)
 indexRoutes.put("/updateLanguage/:id", UserAuth, isAdmin, upload.single('language_thumbnail'), updateLanguage)
 indexRoutes.delete("/deleteLanguage/:id", UserAuth, isAdmin, deleteLanguage)
 indexRoutes.get("/filterLanguages", filterLanguages)
-indexRoutes.get("/getCoursesByLanguage/:languageId", getCoursesByLanguage)
+indexRoutes.get("/getCoursesByLanguage/:languageId",UserAuth, getCoursesByLanguage)
 
 
 //couresCategory Routes

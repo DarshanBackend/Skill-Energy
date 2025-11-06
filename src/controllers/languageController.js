@@ -243,43 +243,54 @@ export const getCoursesByLanguage = async (req, res) => {
         const userId = req.user?._id;
 
         if (!mongoose.Types.ObjectId.isValid(languageId)) {
-            return sendBadRequestResponse(res, "Invalid Language ID format");
+            return res.status(400).json({ success: false, message: "Invalid Language ID format" });
         }
 
         const language = await Language.findById(languageId);
         if (!language) {
-            return sendErrorResponse(res, 404, "Language not found");
+            return res.status(404).json({ success: false, message: "Language not found" });
         }
 
-        const courses = await courseModel.find({ course_languageId: languageId })
+        const courses = await courseModel
+            .find({ course_languageId: languageId })
             .populate("courseCategory", "courseCategoryName")
             .populate("course_languageId", "language")
-            .sort({ createdAt: -1 })
-            .lean();
+            .sort({ createdAt: -1 });
 
         if (!courses || courses.length === 0) {
-            return sendSuccessResponse(res, `No courses found for language: ${language.language}`, []);
+            return res.status(200).json({
+                success: true,
+                message: `No courses found for language: ${language.language}`,
+                courses: [],
+            });
         }
 
         let wishlistCourseIds = [];
         if (userId) {
             const wishlist = await Wishlist.findOne({ userId });
-            wishlistCourseIds = wishlist
-                ? wishlist.courses.map(id => id.toString())
-                : [];
+            if (wishlist) {
+                wishlistCourseIds = wishlist.courses.map(course => course.toString());
+            }
         }
 
-        const data = courses.map(course => ({
-            ...course,
-            isWishlisted: wishlistCourseIds.includes(course._id.toString()),
-        }));
+        const data = courses.map((course) => {
+            const courseId = course._id.toString();
+            const isWishlisted = wishlistCourseIds.includes(courseId);
 
-        return sendSuccessResponse(
-            res,
-            `Courses fetched successfully for language: ${language.language}`,
-            data
-        );
+            const courseObj = course.toObject();
+            return {
+                ...courseObj,
+                isWishlisted: userId ? isWishlisted : false
+            };
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: `Courses fetched successfully for language: ${language.language}`,
+            courses: data,
+        });
     } catch (error) {
-        return sendErrorResponse(res, 500, error.message);
+        console.error("Error in getCoursesByLanguage:", error);
+        return res.status(500).json({ success: false, message: error.message });
     }
 };

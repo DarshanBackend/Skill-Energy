@@ -39,14 +39,24 @@ export const addToCart = async (req, res) => {
 export const getCart = async (req, res) => {
     try {
         const userId = req.user._id;
+
         const cart = await Cart.findOne({ userId }).populate({
             path: 'courses',
-            select: 'thumnail video_title price'
         });
+
         if (!cart || cart.courses.length === 0) {
-            return res.status(200).json({ success: true, message: "no any courses found", data: [] });
+            return res.status(200).json({
+                success: true,
+                message: "No courses found",
+                data: [],
+            });
         }
-        res.status(200).json({ success: true, data: cart.courses });
+
+        res.status(200).json({
+            success: true,
+            data: cart.courses, // full course objects
+        });
+
     } catch (error) {
         return ThrowError(res, 500, error.message);
     }

@@ -4,6 +4,8 @@ import bcrypt from "bcryptjs";
 import nodemailer from "nodemailer"
 import jwt from "jsonwebtoken";
 import { sendSuccessResponse, sendErrorResponse, sendBadRequestResponse, sendUnauthorizedResponse } from '../utils/ResponseUtils.js';
+import dotenv from "dotenv";
+dotenv.config();
 
 const generateOTP = () => Math.floor(1000 + Math.random() * 9000).toString();
 

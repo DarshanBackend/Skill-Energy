@@ -50,44 +50,49 @@ export const loginUser = async (req, res) => {
 export const forgotPassword = async (req, res) => {
     try {
         const { email } = req.body;
+
         if (!email) {
             return sendBadRequestResponse(res, "Email is required");
         }
 
-        const user = await Register.findOne({ email: email });
+        // Check user existence
+        const user = await Register.findOne({ email });
         if (!user) {
             return sendErrorResponse(res, 404, "User not found");
         }
 
-        // Generate OTP
+        // Generate & save OTP
         const otp = generateOTP();
         user.otp = otp;
         user.otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
-
-        // Save user and verify OTP was saved
         await user.save();
-        const savedUser = await Register.findOne({ email: email });
 
         const transporter = nodemailer.createTransport({
-            service: "gmail",
+            host: "smtp.gmail.com",
+            port: 465,
+            secure: true,
             auth: {
                 user: process.env.MY_GMAIL,
                 pass: process.env.MY_PASSWORD,
             },
-            tls: { rejectUnauthorized: false },
         });
 
+        // Mail options
         const mailOptions = {
-            from: process.env.MY_GMAIL,
+            from: `"Skill Energy" <${process.env.MY_GMAIL}>`,
             to: email,
             subject: "Password Reset OTP",
             text: `Your OTP for password reset is: ${otp}. It is valid for 10 minutes.`,
         };
 
+        // Send email
         await transporter.sendMail(mailOptions);
+        console.log(`✅ OTP sent successfully to ${email}`);
+
         return sendSuccessResponse(res, "OTP sent successfully to your email");
 
     } catch (error) {
+        console.error("❌ Forgot Password Error:", error.message);
         return ThrowError(res, 500, error.message);
     }
 };

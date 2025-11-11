@@ -52,9 +52,8 @@ export const loginUser = async (req, res) => {
 export const forgotPassword = async (req, res) => {
     try {
         const { email } = req.body;
-        
+
         if (!email) {
-            console.log("❌ No email provided");
             return res.status(400).json({
                 success: false,
                 message: "Please provide a valid email address",
@@ -62,17 +61,9 @@ export const forgotPassword = async (req, res) => {
             });
         }
 
-        const cleanEmail = email.toLowerCase().trim();
-        console.log("📧 Searching for user with email:", cleanEmail);
-
-        const user = await Register.findOne({ 
-            email: { $regex: new RegExp(`^${cleanEmail}$`, 'i') }
-        }).lean();
-
-        console.log("👤 User found:", !!user);
-
+        const user = await Register.findOne({ email: email.toLowerCase() }).lean();
+        
         if (!user) {
-            console.log("ℹ️ User not found, returning generic success");
             return res.status(200).json({
                 success: true,
                 message: "If the email exists, OTP will be sent",
@@ -80,16 +71,11 @@ export const forgotPassword = async (req, res) => {
             });
         }
 
-        // ✅ Generate OTP
         const otp = generateOTP();
         const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
-        console.log("🔑 Generated OTP:", otp);
 
-        // ✅ Update user
-        await Register.updateOne({ email: user.email }, { otp, otpExpiry });
-        console.log("💾 OTP saved to database for:", user.email);
+        await Register.updateOne({ email }, { otp, otpExpiry });
 
-        // ✅ Email configuration
         const transporter = nodemailer.createTransport({
             service: "gmail",
             auth: {
@@ -98,11 +84,9 @@ export const forgotPassword = async (req, res) => {
             },
         });
 
-        console.log("🔄 Attempting to send email to:", user.email);
-
         const mailOptions = {
             from: `"Skill Energy" <${process.env.MY_GMAIL}>`,
-            to: user.email,
+            to: email,
             subject: "🔐 Password Reset OTP",
             html: `
                 <div style="font-family:sans-serif;line-height:1.5">
@@ -119,25 +103,19 @@ export const forgotPassword = async (req, res) => {
         };
 
         await transporter.sendMail(mailOptions);
-        console.log("✅ Email sent successfully to:", user.email);
         
-        // ✅ SUCCESS - Return response
-        console.log("🎯 Returning success response to client");
         return res.status(200).json({
             success: true,
-            message: "If the email exists, OTP will be sent",
+            message: "If the email exists, OTP will be sent", // ← COMMA
             result: []
         });
 
     } catch (error) {
         console.error("❌ Forgot Password Error:", error);
-        console.error("📝 Error stack:", error.stack);
-        console.error("🔍 Error code:", error.code);
         
-        // Return generic error for security
         return res.status(500).json({
             success: false,
-            message: "Unable to process request. Please try again later.",
+            message: "Unable to process request. Please try again later.", // ← COMMA (no semicolon!)
             result: []
         });
     }

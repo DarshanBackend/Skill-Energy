@@ -52,29 +52,19 @@ export const loginUser = async (req, res) => {
 export const forgotPassword = async (req, res) => {
     try {
         const { email } = req.body;
-
         if (!email) {
-            return res.status(400).json({
-                success: false,
-                message: "Please provide a valid email address",
-                result: []
-            });
+            return sendBadRequestResponse(res, "Provide Email Id");
         }
 
-        const user = await Register.findOne({ email: email.toLowerCase() }).lean();
-        
+        const user = await Register.findOne({ email: email })
         if (!user) {
-            return res.status(200).json({
-                success: true,
-                message: "If the email exists, OTP will be sent",
-                result: []
-            });
+            return sendErrorResponse(res, 400, "User Not Found");
         }
 
         const otp = generateOTP();
-        const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
-
-        await Register.updateOne({ email }, { otp, otpExpiry });
+        user.resetOTP = otp;
+        user.otpExpires = Date.now() + 10 * 60 * 1000;
+        await user.save();
 
         const transporter = nodemailer.createTransport({
             service: "gmail",
@@ -82,42 +72,21 @@ export const forgotPassword = async (req, res) => {
                 user: process.env.MY_GMAIL,
                 pass: process.env.MY_PASSWORD,
             },
+            tls: { rejectUnauthorized: false },
         });
 
         const mailOptions = {
-            from: `"Skill Energy" <${process.env.MY_GMAIL}>`,
+            from: process.env.MY_GMAIL,
             to: email,
-            subject: "🔐 Password Reset OTP",
-            html: `
-                <div style="font-family:sans-serif;line-height:1.5">
-                    <h2>Forgot Password Request</h2>
-                    <p>Hello <b>${user.name || "User"}</b>,</p>
-                    <p>Your One-Time Password (OTP) for password reset is:</p>
-                    <h1 style="color:#1a73e8;letter-spacing:4px">${otp}</h1>
-                    <p>This OTP is valid for <b>10 minutes</b>. Please do not share it with anyone.</p>
-                    <br />
-                    <p>Best Regards,</p>
-                    <p><b>Skill Energy Team</b></p>
-                </div>
-            `,
+            subject: "Password Reset OTP",
+            text: `Your OTP for password reset is: ${otp}. It is valid for 10 minutes.`,
         };
 
         await transporter.sendMail(mailOptions);
-        
-        return res.status(200).json({
-            success: true,
-            message: "If the email exists, OTP will be sent", // ← COMMA
-            result: []
-        });
+        return sendSuccessResponse(res, "OTP sent successfully to your email");
 
     } catch (error) {
-        console.error("❌ Forgot Password Error:", error);
-        
-        return res.status(500).json({
-            success: false,
-            message: "Unable to process request. Please try again later.", // ← COMMA (no semicolon!)
-            result: []
-        });
+        return ThrowError(res, 500, error.message);
     }
 };
 

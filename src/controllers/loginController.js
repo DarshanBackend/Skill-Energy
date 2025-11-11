@@ -54,48 +54,76 @@ export const forgotPassword = async (req, res) => {
         const { email } = req.body;
 
         if (!email) {
-            return sendBadRequestResponse(res, "Email is required");
+            return sendBadRequestResponse(res, "Please provide a valid email address");
         }
 
-        // Check user existence
-        const user = await Register.findOne({ email });
+        const user = await Register.findOne({ email: email.toLowerCase() }).lean();
         if (!user) {
-            return sendErrorResponse(res, 404, "User not found");
+            // For security, don't reveal if user exists or not
+            return sendSuccessResponse(res, "If the email exists, OTP will be sent");
         }
 
-        // Generate & save OTP
         const otp = generateOTP();
-        user.otp = otp;
-        user.otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
-        await user.save();
+        const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+
+        await Register.updateOne({ email }, { otp, otpExpiry });
 
         const transporter = nodemailer.createTransport({
+            service: "gmail",
             host: "smtp.gmail.com",
-            port: 465,
-            secure: true,
+            port: 587,
+            secure: false,
             auth: {
                 user: process.env.MY_GMAIL,
                 pass: process.env.MY_PASSWORD,
             },
+            connectionTimeout: 10000,
+            socketTimeout: 15000,
+            tls: {
+                rejectUnauthorized: false
+            }
         });
 
-        // Mail options
+        await transporter.verify().catch((error) => {
+            console.error("❌ Transporter verification failed:", error);
+            throw new Error("Email service configuration error");
+        });
+
         const mailOptions = {
             from: `"Skill Energy" <${process.env.MY_GMAIL}>`,
             to: email,
-            subject: "Password Reset OTP",
-            text: `Your OTP for password reset is: ${otp}. It is valid for 10 minutes.`,
+            subject: "🔐 Password Reset OTP",
+            html: `
+                <div style="font-family:sans-serif;line-height:1.5">
+                    <h2>Forgot Password Request</h2>
+                    <p>Hello <b>${user.name || "User"}</b>,</p>
+                    <p>Your One-Time Password (OTP) for password reset is:</p>
+                    <h1 style="color:#1a73e8;letter-spacing:4px">${otp}</h1>
+                    <p>This OTP is valid for <b>10 minutes</b>. Please do not share it with anyone.</p>
+                    <br />
+                    <p>Best Regards,</p>
+                    <p><b>Skill Energy Team</b></p>
+                </div>
+            `,
         };
 
-        // Send email
         await transporter.sendMail(mailOptions);
-        console.log(`✅ OTP sent successfully to ${email}`);
 
-        return sendSuccessResponse(res, "OTP sent successfully to your email");
+        console.log(`✅ OTP sent successfully to ${email}`);
+        return sendSuccessResponse(res, "If the email exists, OTP will be sent");
 
     } catch (error) {
-        console.error("❌ Forgot Password Error:", error.message);
-        return ThrowError(res, 500, error.message);
+        console.error("❌ Forgot Password Error:", error);
+
+        // More specific error messages
+        if (error.message.includes("Invalid login") || error.message.includes("Authentication failed")) {
+            return sendErrorResponse(res, 500, "Email service configuration error");
+        }
+        if (error.message.includes("timeout") || error.message.includes("Connection timeout")) {
+            return sendErrorResponse(res, 500, "Email service temporarily unavailable. Please try again.");
+        }
+
+        return sendErrorResponse(res, 500, "Unable to process request. Please try again later.");
     }
 };
 

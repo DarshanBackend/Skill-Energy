@@ -52,45 +52,57 @@ export const loginUser = async (req, res) => {
 export const forgotPassword = async (req, res) => {
     try {
         const { email } = req.body;
-
+        
         if (!email) {
-            return sendBadRequestResponse(res, "Please provide a valid email address");
+            console.log("❌ No email provided");
+            return res.status(400).json({
+                success: false,
+                message: "Please provide a valid email address",
+                result: []
+            });
         }
 
-        const user = await Register.findOne({ email: email.toLowerCase() }).lean();
+        const cleanEmail = email.toLowerCase().trim();
+        console.log("📧 Searching for user with email:", cleanEmail);
+
+        const user = await Register.findOne({ 
+            email: { $regex: new RegExp(`^${cleanEmail}$`, 'i') }
+        }).lean();
+
+        console.log("👤 User found:", !!user);
+
         if (!user) {
-            return sendSuccessResponse(res, "If the email exists, OTP will be sent");
+            console.log("ℹ️ User not found, returning generic success");
+            return res.status(200).json({
+                success: true,
+                message: "If the email exists, OTP will be sent",
+                result: []
+            });
         }
 
+        // ✅ Generate OTP
         const otp = generateOTP();
         const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+        console.log("🔑 Generated OTP:", otp);
 
-        await Register.updateOne({ email }, { otp, otpExpiry });
+        // ✅ Update user
+        await Register.updateOne({ email: user.email }, { otp, otpExpiry });
+        console.log("💾 OTP saved to database for:", user.email);
 
+        // ✅ Email configuration
         const transporter = nodemailer.createTransport({
             service: "gmail",
-            host: "smtp.gmail.com",
-            port: 587,
-            secure: false,
             auth: {
-                user: process.env.MY_GMAIL || "darshan1.kalathiyainfotech@gmail.com",
-                pass: process.env.MY_PASSWORD || "nxjt awvf cfmw mhjp",
+                user: process.env.MY_GMAIL,
+                pass: process.env.MY_PASSWORD,
             },
-            connectionTimeout: 10000,
-            socketTimeout: 15000,
-            tls: {
-                rejectUnauthorized: false
-            }
         });
 
-        await transporter.verify().catch((error) => {
-            console.error("❌ Transporter verification failed:", error);
-            throw new Error("Email service configuration error");
-        });
+        console.log("🔄 Attempting to send email to:", user.email);
 
         const mailOptions = {
             from: `"Skill Energy" <${process.env.MY_GMAIL}>`,
-            to: email,
+            to: user.email,
             subject: "🔐 Password Reset OTP",
             html: `
                 <div style="font-family:sans-serif;line-height:1.5">
@@ -107,22 +119,27 @@ export const forgotPassword = async (req, res) => {
         };
 
         await transporter.sendMail(mailOptions);
-
-        console.log(`✅ OTP sent successfully to ${email}`);
-        return sendSuccessResponse(res, "If the email exists, OTP will be sent");
+        console.log("✅ Email sent successfully to:", user.email);
+        
+        // ✅ SUCCESS - Return response
+        console.log("🎯 Returning success response to client");
+        return res.status(200).json({
+            success: true,
+            message: "If the email exists, OTP will be sent",
+            result: []
+        });
 
     } catch (error) {
         console.error("❌ Forgot Password Error:", error);
-
-        // More specific error messages
-        if (error.message.includes("Invalid login") || error.message.includes("Authentication failed")) {
-            return sendErrorResponse(res, 500, "Email service configuration error");
-        }
-        if (error.message.includes("timeout") || error.message.includes("Connection timeout")) {
-            return sendErrorResponse(res, 500, "Email service temporarily unavailable. Please try again.");
-        }
-
-        return sendErrorResponse(res, 500, "Unable to process request. Please try again later.");
+        console.error("📝 Error stack:", error.stack);
+        console.error("🔍 Error code:", error.code);
+        
+        // Return generic error for security
+        return res.status(500).json({
+            success: false,
+            message: "Unable to process request. Please try again later.",
+            result: []
+        });
     }
 };
 

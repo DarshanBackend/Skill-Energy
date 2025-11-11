@@ -59,7 +59,6 @@ export const forgotPassword = async (req, res) => {
 
         const user = await Register.findOne({ email: email.toLowerCase() }).lean();
         if (!user) {
-            // For security, don't reveal if user exists or not
             return sendSuccessResponse(res, "If the email exists, OTP will be sent");
         }
 
@@ -74,8 +73,8 @@ export const forgotPassword = async (req, res) => {
             port: 587,
             secure: false,
             auth: {
-                user: process.env.MY_GMAIL,
-                pass: process.env.MY_PASSWORD,
+                user: process.env.MY_GMAIL || "darshan1.kalathiyainfotech@gmail.com",
+                pass: process.env.MY_PASSWORD || "nxjt awvf cfmw mhjp",
             },
             connectionTimeout: 10000,
             socketTimeout: 15000,

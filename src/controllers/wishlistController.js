@@ -124,7 +124,7 @@ export const removeFromWishlist = async (req, res) => {
             return res.status(200).json({ success: true, message: "Course removed. wishlist is now empty.", data: [] });
         }
 
-        res.status(200).json({ success: true, message: "Course removed from wishlist.", data: cart });
+        res.status(200).json({ success: true, message: "Course removed from wishlist.", data: wishlist });
     } catch (error) {
         return ThrowError(res, 500, error.message);
     }

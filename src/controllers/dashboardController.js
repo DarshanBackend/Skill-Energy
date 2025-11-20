@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import registerModel from '../models/registerModel.js';
 import Course from '../models/courseModel.js';
 import Payment from '../models/paymentModel.js';
@@ -276,12 +277,14 @@ export const getTopMentors = async (req, res) => {
 export const filterCoursesController = async (req, res) => {
     try {
         const {
-            sortBy,           // 'ratings' | 'newest'
-            language,         // language name e.g. 'English'
-            topics,           // language topic e.g. 'Python'
-            subcategory,      // category e.g. 'Web Development'
-            minRating         // e.g. 4.5, 4.0, 3.5
+            sortBy,
+            language,
+            topics,
+            subcategory,
+            minRating
         } = req.query;
+
+        const userId = req.user?._id;
 
         let filter = {};
 
@@ -307,32 +310,55 @@ export const filterCoursesController = async (req, res) => {
             }
         }
 
-        let pipeline = [
-            { $match: filter },
-            {
-                $addFields: {
-                    avgRating: { $avg: "$ratings.rating" },
-                    totalRatings: { $size: "$ratings" }
-                }
-            }
-        ];
-
-        if (minRating) {
-            pipeline.push({
-                $match: { avgRating: { $gte: parseFloat(minRating) } }
-            });
+        let wishlistCourseIds = [];
+        if (userId) {
+            const wishlist = await Wishlist.findOne({ userId });
+            wishlistCourseIds = wishlist ? wishlist.courses.map(id => id.toString()) : [];
         }
 
-        let sortQuery = {};
-        if (sortBy === "ratings") sortQuery = { avgRating: -1 };
-        else if (sortBy === "newest") sortQuery = { createdAt: -1 };
-        else sortQuery = { createdAt: -1 }; // default newest
+        let coursesQuery = Course.find(filter)
+            .populate("courseCategory");
 
-        pipeline.push({ $sort: sortQuery });
+        if (sortBy === "ratings") {
+            
+        } else if (sortBy === "newest") {
+            coursesQuery = coursesQuery.sort({ createdAt: -1 });
+        } else if (sortBy === "popular") {
+            coursesQuery = coursesQuery.sort({ "user.length": -1 });
+        } else {
+            coursesQuery = coursesQuery.sort({ createdAt: -1 });
+        }
 
-        const courses = await Course.aggregate(pipeline);
+        let courses = await coursesQuery.lean();
 
-        return sendSuccessResponse(res, "Courses filtered successfully", courses);
+        courses = courses.map(course => {
+            const totalRatings = course.ratings.length;
+            const avgRating = totalRatings > 0 
+                ? course.ratings.reduce((sum, rating) => sum + rating.rating, 0) / totalRatings
+                : 0;
+            
+            return {
+                ...course,
+                avgRating: parseFloat(avgRating.toFixed(1)),
+                totalRatings,
+                totalEnrollments: course.user.length
+            };
+        });
+
+        if (minRating) {
+            courses = courses.filter(course => course.avgRating >= parseFloat(minRating));
+        }
+
+        if (sortBy === "ratings") {
+            courses.sort((a, b) => b.avgRating - a.avgRating);
+        }
+
+        const coursesWithWishlist = courses.map(course => ({
+            ...course,
+            isWishlisted: wishlistCourseIds.includes(course._id.toString())
+        }));
+
+        return sendSuccessResponse(res, "Courses filtered successfully", coursesWithWishlist);
     } catch (error) {
         console.error("Filter Error:", error);
         return sendErrorResponse(res, 500, "Error filtering courses", error.message);

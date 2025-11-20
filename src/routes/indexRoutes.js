@@ -86,7 +86,7 @@ indexRoutes.get('/getCourseByCategory/:categoryId', UserAuth, getCourseByCategor
 indexRoutes.put('/updateCourse/:id', UserAuth, isAdmin, upload.single('thumbnail'), updateCourse);
 indexRoutes.delete('/deleteCourse/:id', UserAuth, isAdmin, deleteCourse);
 indexRoutes.get('/getPopularDesignCourses', UserAuth, getPopularDesignCourses);
-indexRoutes.get('/filterCoursesController', filterCoursesController);
+indexRoutes.get('/filterCoursesController',UserAuth, filterCoursesController);
 
 
 

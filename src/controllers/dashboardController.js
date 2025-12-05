@@ -276,17 +276,14 @@ export const getTopMentors = async (req, res) => {
 
 export const filterCoursesController = async (req, res) => {
     try {
-        const {
-            sortBy,
-            language,
-            topics,
-            subcategory,
-            minRating
-        } = req.query;
-
+        const { sortBy, language, topics, category, minRating } = req.query;
         const userId = req.user?._id;
 
         let filter = {};
+
+        if (category) {
+            filter.courseCategory = category;
+        }
 
         if (language) {
             filter.language = { $regex: new RegExp(language, "i") };
@@ -301,27 +298,15 @@ export const filterCoursesController = async (req, res) => {
             }
         }
 
-        if (subcategory) {
-            const categoryDoc = await CourseCategory.findOne({
-                courseCategoryName: { $regex: new RegExp(subcategory, "i") }
-            });
-            if (categoryDoc) {
-                filter.courseCategory = categoryDoc._id;
-            }
-        }
-
         let wishlistCourseIds = [];
         if (userId) {
             const wishlist = await Wishlist.findOne({ userId });
             wishlistCourseIds = wishlist ? wishlist.courses.map(id => id.toString()) : [];
         }
 
-        let coursesQuery = Course.find(filter)
-            .populate("courseCategory");
+        let coursesQuery = Course.find(filter).populate("courseCategory");
 
-        if (sortBy === "ratings") {
-            
-        } else if (sortBy === "newest") {
+        if (sortBy === "newest") {
             coursesQuery = coursesQuery.sort({ createdAt: -1 });
         } else if (sortBy === "popular") {
             coursesQuery = coursesQuery.sort({ "user.length": -1 });
@@ -333,10 +318,10 @@ export const filterCoursesController = async (req, res) => {
 
         courses = courses.map(course => {
             const totalRatings = course.ratings.length;
-            const avgRating = totalRatings > 0 
-                ? course.ratings.reduce((sum, rating) => sum + rating.rating, 0) / totalRatings
-                : 0;
-            
+            const avgRating =
+                totalRatings > 0
+                    ? course.ratings.reduce((sum, rating) => sum + rating.rating, 0) / totalRatings
+                    : 0;
             return {
                 ...course,
                 avgRating: parseFloat(avgRating.toFixed(1)),

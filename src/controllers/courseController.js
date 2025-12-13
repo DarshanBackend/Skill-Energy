@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import Course from "../models/courseModel.js";
+import User from "../models/registerModel.js";
 import { ThrowError } from "../utils/ErrorUtils.js"
 import { sendSuccessResponse, sendErrorResponse, sendBadRequestResponse, sendForbiddenResponse, sendCreatedResponse, sendUnauthorizedResponse } from '../utils/ResponseUtils.js';
 import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
@@ -159,23 +160,59 @@ export const getCourseById = async (req, res) => {
             return sendBadRequestResponse(res, "Invalid course ID");
         }
 
-        const course = await Course.findById(id).populate('courseCategory');
+        const course = await Course.findById(id).populate("courseCategory");
         if (!course) {
             return sendErrorResponse(res, 404, "Course not found");
         }
 
         const isAdmin = req.user && req.user.isAdmin;
+
         if (!isAdmin) {
-            const CoursePayment = (await import('../models/coursePaymentModel.js')).default;
-            const hasPaid = await CoursePayment.findOne({ courseId: id, user: req.user._id });
-            if (!hasPaid) {
-                return sendForbiddenResponse(res, "Access denied. You have not purchased this course.");
+            const CoursePayment = (await import("../models/coursePaymentModel.js")).default;
+
+            const freshUser = await User.findById(req.user._id);
+
+            const hasCoursePayment = await CoursePayment.findOne({
+                courseId: id,
+                user: req.user._id
+            });
+
+            const hasActiveSubscription =
+                freshUser?.isSubscribed === true &&
+                freshUser?.planStatus === "Active" &&
+                freshUser?.endDate &&
+                new Date(freshUser.endDate) > new Date();
+
+            if (!hasCoursePayment && !hasActiveSubscription) {
+                return sendForbiddenResponse(
+                    res,
+                    "Access denied. You have not purchased this course or an active plan."
+                );
             }
         }
 
-        return sendSuccessResponse(res, "Course retrieved successfully", course);
+        if (req.user && !isAdmin) {
+            await Course.updateOne(
+                {
+                    _id: id,
+                    "user.userId": { $ne: req.user._id }
+                },
+                {
+                    $push: { user: { userId: req.user._id } },
+                    $inc: { viewCount: 1 }
+                }
+            );
+        }
+
+        const updatedCourse = await Course.findById(id).populate("courseCategory");
+
+        return sendSuccessResponse(res, "Course retrieved successfully", {
+            course: updatedCourse,
+            viewCount: updatedCourse.viewCount
+        });
+
     } catch (error) {
-        return ThrowError(res, 500, error.message)
+        return ThrowError(res, 500, error.message);
     }
 };
 
@@ -192,7 +229,6 @@ export const getAllCourses = async (req, res) => {
         return ThrowError(res, 500, error.message)
     }
 };
-
 
 export const getCourseByCategory = async (req, res) => {
     try {

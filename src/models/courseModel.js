@@ -43,6 +43,10 @@ const courseSchema = mongoose.Schema({
     long_description: {
         type: String
     },
+    viewCount: {
+        type: Number,
+        default: 0
+    },
     user: {
         type: [{
             userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
